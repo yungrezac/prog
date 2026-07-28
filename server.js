@@ -1,0 +1,713 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const WebSocket = require('ws');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+// --- НАСТРОЙКИ БАЗЫ И ОПЛАТЫ ---
+const SUPABASE_URL = 'https://lqjagftaeejdufwwvjwd.supabase.co';
+// ВАЖНО: ЗАМЕНИТЕ НА ВАШ ИСТИННЫЙ SERVICE_ROLE KEY
+const SUPABASE_SERVICE_KEY = 'sb_publishable_6-9IBhMX9CMVbIackZAJ9g_UUk5FDqx'; 
+const TON_WALLET = 'UQDCBh7hF8vHZOh5kd81c8eKKj5bF1ymVTW09kdYd66-0q7T';
+
+app.use(express.static(path.join(__dirname, '/')));
+
+app.get('/da-callback', (req, res) => {
+    res.send(`<html><body><script>
+        if (window.opener) { window.opener.postMessage({ type: 'da_auth', hash: window.location.hash }, '*'); window.close(); } 
+        else { document.write('Авторизация успешна. Можете закрыть окно.'); }
+    </script></body></html>`);
+});
+
+class UserSession {
+    constructor(userId, ioServer) {
+        this.userId = userId;
+        this.io = ioServer;
+        
+        this.timerState = {
+            timeLeft: 0, isRunning: false, isVictory: false, isBonusPhase: false, isRollingBonus: false,
+            bonusTriggerUser: '', forceVictory: false,
+            settings: {}, subbedUsers: new Set(), userLikes: {}
+        };
+        this.multiplierState = { isActive: false, type: 'buff', value: 1, timeLeft: 0 };
+        
+        this.rouletteQueue = [];
+        this.isRouletteBusy = false;
+        
+        // История событий для стабильности пульта (сохраняем последние 50)
+        this.alertHistory = [];
+        
+        // Подключения TikTok
+        this.tiktokConnection = null;
+        this.ttPingInterval = null;
+        this.reconnectTimeout = null;
+        this.ttReconnectAttempts = 0;
+        this.currentStreamTotalLikes = 0;
+        this.lastProcessedLikesMilestone = null;
+        
+        // Подключения DA, DP, DX
+        this.daWs = null;
+        this.dpInterval = null;
+        this.dxInterval = null;
+        this.lastDpDonationId = null;
+        this.dxProcessedIds = new Set();
+        
+        this.statusText = { tt: { text: 'Ожидание', isActive: false, isStreamLive: false }, da: 'Ожидание', dp: 'Ожидание', dx: 'Ожидание' };
+        
+        this.startEngine();
+    }
+
+    emit(event, data) { this.io.to(this.userId).emit(event, data); }
+
+    startEngine() {
+        this.mainInterval = setInterval(() => {
+            if (this.timerState.isRunning && !this.timerState.isVictory && !this.timerState.isRollingBonus) {
+                if (this.timerState.timeLeft > 0) this.timerState.timeLeft -= 1;
+                
+                if (this.timerState.timeLeft <= 0) {
+                    if (this.timerState.forceVictory) {
+                        this.timerState.timeLeft = 0; this.timerState.isRunning = false; this.timerState.isVictory = true; this.timerState.forceVictory = false;
+                    } else if (this.timerState.settings.bonusEnabled && !this.timerState.isBonusPhase) {
+                        this.timerState.timeLeft = 0; this.timerState.isBonusPhase = true; this.timerState.isRollingBonus = true; this.timerState.isRunning = false;
+                        const min = this.timerState.settings.bonusMin || 60; const max = this.timerState.settings.bonusMax || 300;
+                        const bonusTime = Math.floor(Math.random() * (max - min + 1)) + min;
+                        this.emit('start-bonus-roll', { username: this.timerState.bonusTriggerUser || 'Зритель', amount: bonusTime });
+                    } else {
+                        this.timerState.timeLeft = 0; this.timerState.isRunning = false; this.timerState.isVictory = true;
+                    }
+                }
+
+                if (this.multiplierState.isActive && this.multiplierState.timeLeft > 0) {
+                    this.multiplierState.timeLeft -= 1;
+                    if (this.multiplierState.timeLeft <= 0) { this.multiplierState.isActive = false; this.multiplierState.value = 1; }
+                }
+                this.broadcastTime();
+            }
+        }, 1000);
+    }
+
+    broadcastTime() {
+        this.emit('timer-tick', {
+            timeLeft: this.timerState.timeLeft, isVictory: this.timerState.isVictory, isRunning: this.timerState.isRunning,
+            multiplier: this.multiplierState, isBonusPhase: this.timerState.isBonusPhase, isRollingBonus: this.timerState.isRollingBonus,
+            currentTotalLikes: this.currentStreamTotalLikes,
+            likesRouletteThreshold: this.timerState.settings?.likesRouletteThreshold || 100000,
+            likesRouletteEnabled: this.timerState.settings?.likesRouletteEnabled || false
+        });
+    }
+
+    broadcastAlert(data) { 
+        // Сохраняем в историю сервера для восстановления на пульте
+        this.alertHistory.unshift(data);
+        if (this.alertHistory.length > 50) this.alertHistory.pop();
+        this.emit('new-alert', data); 
+    }
+    
+    broadcastStatus() { this.emit('status-update', this.statusText); }
+
+    addTime(amount, username, ignoreMultiplier = false) {
+        if (this.timerState.isVictory) return 0;
+
+        let timeChange = parseInt(amount, 10);
+        if (isNaN(timeChange)) timeChange = 0;
+
+        if (this.multiplierState.isActive && !ignoreMultiplier) {
+            if (this.multiplierState.type === 'buff') timeChange = timeChange > 0 ? timeChange * this.multiplierState.value : timeChange;
+            else if (this.multiplierState.type === 'debuff') timeChange = -Math.abs(timeChange * this.multiplierState.value);
+        }
+        
+        let oldTime = this.timerState.timeLeft;
+        this.timerState.timeLeft += timeChange;
+        
+        if (this.timerState.timeLeft <= 0) {
+            this.timerState.timeLeft = 0;
+            if (oldTime > 0) this.timerState.bonusTriggerUser = username;
+        }
+        return this.timerState.timeLeft - oldTime;
+    }
+
+    checkIds(idsArray, giftId) { return Array.isArray(idsArray) && idsArray.some(id => String(id) === String(giftId)); }
+
+    spinRoulette(user) {
+        if (!this.timerState.settings.rouletteSlots || this.timerState.settings.rouletteSlots.length === 0) { this.isRouletteBusy = false; return; }
+        
+        let enabledSlots = this.timerState.settings.rouletteSlots.filter(s => s.isEnabled !== false);
+        if (enabledSlots.length === 0) enabledSlots = this.timerState.settings.rouletteSlots;
+        let availableSlots = enabledSlots;
+        
+        if (this.timerState.timeLeft <= 300) availableSlots = availableSlots.filter(s => !['sub_time', 'divide_time'].includes(s.type));
+        if (availableSlots.length === 0) availableSlots = enabledSlots;
+
+        let totalWeight = availableSlots.reduce((sum, slot) => sum + Number(slot.chance), 0) || 1;
+        let random = Math.random() * totalWeight; let winner = availableSlots[availableSlots.length - 1];
+        for (let slot of availableSlots) { if (random < slot.chance) { winner = slot; break; } random -= slot.chance; }
+
+        this.emit('start-roulette', { winner, slots: availableSlots, user });
+    }
+
+    checkRouletteQueue() {
+        if (this.isRouletteBusy || this.rouletteQueue.length === 0) return;
+        this.isRouletteBusy = true; this.spinRoulette(this.rouletteQueue.shift());
+    }
+
+    processGenericDonation(id, username, amount, currency, platform) {
+        if (this.timerState.isVictory || this.timerState.isRollingBonus) return;
+        const rawAmount = parseFloat(amount); if (isNaN(rawAmount) || rawAmount <= 0) return;
+
+        const exchangeRates = { 'USD': 92, 'EUR': 100, 'KZT': 0.2, 'BYN': 28, 'UAH': 2.4, 'RUB': 1 };
+        let amountInRub = rawAmount * (exchangeRates[String(currency || 'RUB').toUpperCase()] || 1);
+
+        let addedTime = this.addTime(Math.floor(amountInRub), username);
+        this.broadcastAlert({ id: Date.now(), username, avatar: 'https://cdn-icons-png.flaticon.com/512/5272/5272370.png', giftName: `Донат ${rawAmount}`, timeAdded: addedTime, type: 'gift', amount: 1, targetTime: this.timerState.timeLeft });
+        this.broadcastTime();
+    }
+
+    disconnectTikTok(customText = 'Отключено') {
+        this.manualTtDisconnect = true;
+        if (this.tiktokConnection) { try { this.tiktokConnection.terminate(); } catch(e) {} this.tiktokConnection = null; }
+        if (this.reconnectTimeout) { clearTimeout(this.reconnectTimeout); this.reconnectTimeout = null; }
+        if (this.ttPingInterval) { clearInterval(this.ttPingInterval); this.ttPingInterval = null; }
+        this.statusText.tt = { text: customText, isActive: false, isStreamLive: false }; this.broadcastStatus();
+    }
+
+    connectTikTok(username, apiKey) {
+        if (!username || !apiKey) return;
+        
+        const cleanUsername = username.replace(/[@\s]/g, '');
+        
+        this.disconnectTikTok();
+        this.manualTtDisconnect = false;
+        this.statusText.tt = { text: 'Подключение...', isActive: false, isStreamLive: false }; this.broadcastStatus();
+
+        try {
+            const wsUrl = `wss://api.tik.tools?uniqueId=${encodeURIComponent(cleanUsername)}&apiKey=${encodeURIComponent(apiKey.trim())}`;
+            this.tiktokConnection = new WebSocket(wsUrl);
+            this.tiktokConnection.isAlive = true;
+
+            this.tiktokConnection.on('open', () => {
+                this.ttReconnectAttempts = 0;
+                this.statusText.tt = { text: 'Успешно подключено', isActive: true, isStreamLive: false }; this.broadcastStatus();
+                this.emit('play-success-sound', {});
+                
+                this.ttPingInterval = setInterval(() => {
+                    if (this.tiktokConnection && this.tiktokConnection.readyState === WebSocket.OPEN) {
+                        if (this.tiktokConnection.isAlive === false) return this.tiktokConnection.terminate();
+                        this.tiktokConnection.isAlive = false; 
+                        this.tiktokConnection.ping();
+                    }
+                }, 30000);
+            });
+
+            this.tiktokConnection.on('pong', () => { if (this.tiktokConnection) this.tiktokConnection.isAlive = true; });
+
+            this.tiktokConnection.on('message', (msg) => {
+                if (this.tiktokConnection) this.tiktokConnection.isAlive = true;
+                
+                if (!this.statusText.tt.isStreamLive) {
+                    this.statusText.tt.isStreamLive = true;
+                    this.broadcastStatus();
+                }
+
+                try {
+                    const events = JSON.parse(msg.toString());
+                    (Array.isArray(events) ? events : [events]).forEach(evt => {
+                        const eventName = evt.event || evt.type || evt.action; const data = evt.data || evt.payload || evt;
+                        if (eventName === 'gift') this.handleTikTokGift(data);
+                        else if (eventName === 'like') this.handleTikTokLike(data);
+                        else if (eventName === 'follow' || eventName === 'subscribe' || eventName === 'social') this.handleTikTokFollow(data);
+                        else if (eventName === 'streamEnd' || eventName === 'room_close' || eventName === 'live_end' || eventName === 'live_ended') {
+                            this.disconnectTikTok('Стрим завершен');
+                        }
+                    });
+                } catch (e) {}
+            });
+
+            this.tiktokConnection.on('close', (code, reason) => { 
+                if (this.manualTtDisconnect) return;
+                
+                if (this.ttPingInterval) clearInterval(this.ttPingInterval);
+                
+                let errorMsg = `Обрыв (${code})`;
+                if (code === 4003) errorMsg = 'Стрим оффлайн (4003)';
+                else if (code === 4001) errorMsg = 'Неверный API ключ (4001)';
+                else if (code === 4404) errorMsg = 'Аккаунт не найден (4404)';
+                else if (code === 1000 || code === 1005) errorMsg = 'Стрим завершен';
+
+                if (code === 4001 || code === 4003 || code === 4005 || code === 4404 || code === 1000 || code === 1005) { 
+                    this.statusText.tt = { text: errorMsg, isActive: false, isStreamLive: false }; 
+                    this.broadcastStatus();
+                    this.tiktokConnection = null;
+                } else {
+                    this.statusText.tt = { text: `${errorMsg}. Переподключение...`, isActive: false, isStreamLive: false }; 
+                    this.broadcastStatus();
+                    this.ttReconnectAttempts++;
+                    let delay = this.ttReconnectAttempts >= 3 ? 120000 : (this.ttReconnectAttempts === 2 ? 30000 : 10000);
+                    this.reconnectTimeout = setTimeout(() => this.connectTikTok(cleanUsername, apiKey), delay);
+                }
+            });
+            this.tiktokConnection.on('error', () => {});
+        } catch (err) { this.disconnectTikTok(); }
+    }
+
+    handleTikTokGift(data) {
+        if (this.timerState.isVictory || this.timerState.isRollingBonus) return;
+        const isEnd = data.repeatEnd !== undefined ? data.repeatEnd : true;
+        if (data.giftType === 1 && !isEnd) return;
+
+        const giftIdStr = String(data.giftId || data.gift?.id || '');
+        const count = data.repeatCount || data.combo || 1;
+        const diamonds = data.diamondCount || data.gift?.diamonds || 0;
+        const totalCoins = diamonds * count;
+        const nickname = data.nickname || data.user?.nickname || 'Зритель';
+        const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
+        const giftName = data.giftName || data.gift?.name || 'Подарок';
+        const giftIcon = data.giftPictureUrl || data.gift?.icon || '';
+
+        this.emit('check-and-save-gift', { gift_id: giftIdStr, name: giftName, icon: giftIcon, cost: diamonds });
+
+        let addedTime = 0; let eventType = 'gift';
+
+        if (this.checkIds(this.timerState.settings.giftRouletteIds, giftIdStr)) {
+            for(let i=0; i<count; i++) this.rouletteQueue.push({ username: nickname, avatar, triggerGift: { name: giftName, icon: giftIcon } });
+            this.checkRouletteQueue();
+            if (this.timerState.settings.rouletteGiftAddsCost && totalCoins > 0) addedTime = this.addTime(totalCoins, nickname, true);
+            this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName, giftIcon, timeAdded: addedTime, type: 'roulette', amount: count, targetTime: this.timerState.timeLeft });
+            this.broadcastTime(); return;
+        }
+
+        if (this.timerState.settings.isMultiplierGiftEnabled && this.checkIds(this.timerState.settings.giftMultiplierIds, giftIdStr)) {
+            this.multiplierState = { isActive: true, type: 'buff', value: this.timerState.settings.multiplierValue || 2, timeLeft: (this.timerState.settings.multiplierDuration || 60) * count };
+            this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName, giftIcon, timeAdded: 0, type: 'multiplier', amount: count, targetTime: this.timerState.timeLeft });
+            this.broadcastTime(); return;
+        }
+
+        if (this.timerState.settings.isDebuffGiftEnabled && this.checkIds(this.timerState.settings.giftDebuffIds, giftIdStr)) {
+            this.multiplierState = { isActive: true, type: 'debuff', value: this.timerState.settings.debuffValue || 2, timeLeft: (this.timerState.settings.debuffDuration || 60) * count };
+            this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName, giftIcon, timeAdded: 0, type: 'debuff', amount: count, targetTime: this.timerState.timeLeft });
+            this.broadcastTime(); return;
+        }
+
+        if (this.timerState.settings.isPenaltyEnabled !== false && this.checkIds(this.timerState.settings.giftPenaltyIds, giftIdStr)) {
+            eventType = 'penalty';
+            let mult = this.multiplierState.isActive ? this.multiplierState.value : 1; 
+            let basePenalty = (this.timerState.settings.penaltyAmount || 600); 
+            let threshold = (this.timerState.settings.penaltyThreshold || 300); 
+            let timeToSubtract = basePenalty * mult; 
+            for (let i = 0; i < count; i++) {
+                if (this.timerState.timeLeft > threshold) {
+                    let diff = this.timerState.timeLeft - timeToSubtract; 
+                    if (diff < threshold) diff = threshold; 
+                    addedTime -= (this.timerState.timeLeft - diff); this.timerState.timeLeft = diff;
+                }
+            }
+        } else if (this.timerState.settings.isSetTimeEnabled !== false && this.checkIds(this.timerState.settings.giftSetTimeIds, giftIdStr)) {
+            eventType = 'set_time';
+            let targetTime = this.timerState.settings.setTimeValue || 300; 
+            addedTime = targetTime - this.timerState.timeLeft; this.timerState.timeLeft = targetTime;
+            if (this.timerState.timeLeft > 0) { this.timerState.isVictory = false; if (!this.timerState.isBonusPhase && !this.timerState.isRollingBonus) this.timerState.isRunning = true; }
+        } else if (this.timerState.settings.isResetEnabled !== false && this.checkIds(this.timerState.settings.giftResetIds, giftIdStr)) {
+            eventType = 'reset_time';
+            addedTime = -this.timerState.timeLeft; this.timerState.timeLeft = 0; this.timerState.forceVictory = true; 
+        } else {
+            const customRule = this.timerState.settings.customTriggers?.find(rule => rule.isEnabled && this.checkIds(rule.ids, giftIdStr));
+            if (customRule) {
+                eventType = customRule.type;
+                if (customRule.type === 'add') addedTime = this.addTime((customRule.value || 0) * count, nickname);
+                else if (customRule.type === 'sub') addedTime = this.addTime(-Math.abs(customRule.value || 0) * count, nickname);
+                else if (customRule.type === 'sub_threshold') {
+                    let targetThreshold = parseInt(customRule.threshold, 10) || 0;
+                    let amountToSub = Math.abs(customRule.value || 0) * count;
+                    let current = this.timerState.timeLeft;
+                    if (current > targetThreshold) {
+                        let targetTime = Math.max(targetThreshold, current - amountToSub);
+                        addedTime = targetTime - current;
+                        this.timerState.timeLeft = targetTime;
+                        if (this.timerState.timeLeft <= 0) this.timerState.forceVictory = true;
+                    } else {
+                        addedTime = 0;
+                    }
+                }
+                else if (customRule.type === 'set') { 
+                    let targetTime = customRule.value || 0; addedTime = targetTime - this.timerState.timeLeft; this.timerState.timeLeft = targetTime; 
+                    if (this.timerState.timeLeft > 0) { this.timerState.isVictory = false; if (!this.timerState.isBonusPhase && !this.timerState.isRollingBonus) this.timerState.isRunning = true; }
+                }
+                else if (customRule.type === 'reset') { addedTime = -this.timerState.timeLeft; this.timerState.timeLeft = 0; this.timerState.forceVictory = true; }
+            } else {
+                addedTime = this.addTime(totalCoins, nickname);
+            }
+        }
+
+        if (addedTime !== 0 || totalCoins > 0 || ['set_time', 'reset_time', 'set', 'reset', 'penalty', 'sub_threshold'].includes(eventType)) { 
+            this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName, giftIcon, timeAdded: addedTime, type: eventType, amount: count, targetTime: this.timerState.timeLeft }); 
+        }
+        this.broadcastTime();
+    }
+
+    handleTikTokLike(data) {
+        if (this.timerState.isVictory || this.timerState.isRollingBonus) return;
+        const batchLikes = parseInt(data.likeCount || 1, 10);
+        const apiTotalLikes = parseInt(data.totalLikes, 10);
+        const nickname = data.nickname || data.user?.nickname || 'Зритель';
+        const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
+        
+        if (!isNaN(apiTotalLikes) && apiTotalLikes > this.currentStreamTotalLikes) this.currentStreamTotalLikes = apiTotalLikes;
+        else this.currentStreamTotalLikes += batchLikes;
+        
+        if (this.timerState.settings.likesRouletteEnabled && this.currentStreamTotalLikes > 0) {
+            const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
+            const currentMilestone = Math.floor(this.currentStreamTotalLikes / threshold);
+            
+            if (this.lastProcessedLikesMilestone === null) {
+                let previousTotal = this.currentStreamTotalLikes - batchLikes;
+                if (previousTotal < 0) previousTotal = 0;
+                this.lastProcessedLikesMilestone = Math.floor(previousTotal / threshold);
+            }
+            
+            if (currentMilestone > this.lastProcessedLikesMilestone) {
+                const diff = currentMilestone - this.lastProcessedLikesMilestone;
+                for (let i = 0; i < diff; i++) {
+                    this.rouletteQueue.push({ username: 'Лайки', avatar: 'https://cdn-icons-png.flaticon.com/512/833/833472.png', triggerGift: { name: 'Лайки', icon: 'https://cdn-icons-png.flaticon.com/512/833/833472.png' }, isLikesRoulette: true });
+                }
+                this.lastProcessedLikesMilestone = currentMilestone; 
+                this.checkRouletteQueue();
+            }
+        }
+
+        if (!this.timerState.settings.likesEnabled) {
+            this.broadcastTime();
+            return;
+        }
+        const limit = parseInt(this.timerState.settings.likeThreshold) || 100;
+        const userId = data.uniqueId || data.user?.uniqueId || String(Math.random());
+        this.timerState.userLikes[userId] = (this.timerState.userLikes[userId] || 0) + batchLikes;
+
+        let triggers = Math.floor(this.timerState.userLikes[userId] / limit);
+        if (triggers > 0) {
+            this.timerState.userLikes[userId] -= triggers * limit;
+            for (let i = 0; i < triggers; i++) {
+                let amountToAdd = parseInt(this.timerState.settings.likeTime, 10);
+                let addedTime = this.addTime(amountToAdd, nickname, true);
+                this.broadcastAlert({ id: Date.now()+i, username: nickname, avatar, giftName: "ЛАЙКИ", timeAdded: addedTime, type: 'like', amount: limit, targetTime: this.timerState.timeLeft });
+            }
+        }
+        this.broadcastTime();
+    }
+
+    handleTikTokFollow(data) {
+        if (this.timerState.isVictory || this.timerState.isRollingBonus || !this.timerState.settings.subsEnabled) return;
+        if (data.action && data.action !== 'follow' && data.action !== 'subscribe') return;
+        
+        const nickname = data.nickname || data.user?.nickname || 'Зритель';
+        const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
+        const userId = data.uniqueId || data.user?.uniqueId || String(Math.random());
+        
+        if (!this.timerState.subbedUsers.has(userId)) {
+            this.timerState.subbedUsers.add(userId);
+            let amountToAdd = parseInt(this.timerState.settings.subTime, 10);
+            let addedTime = this.addTime(amountToAdd, nickname, true);
+            this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName: "ПОДПИСКА", timeAdded: addedTime, type: 'follow', targetTime: this.timerState.timeLeft });
+            this.broadcastTime();
+        }
+    }
+
+    async connectDaToken(accessToken) {
+        try {
+            const res = await fetch('https://www.donationalerts.com/api/v1/user/oauth', { headers: { 'Authorization': `Bearer ${accessToken}` } });
+            if (!res.ok) { this.statusText.da = 'Ошибка токена DA'; this.broadcastStatus(); return; }
+            const userData = await res.json();
+            const userId = userData.data.id; const socketToken = userData.data.socket_connection_token;
+
+            this.daWs = new WebSocket('wss://centrifugo.donationalerts.com/connection/websocket');
+            this.daWs.on('open', () => {
+                this.daWs.send(JSON.stringify({ "params": { "token": socketToken }, "id": 1 }));
+                this.statusText.da = 'Успешно подключено'; this.broadcastStatus();
+                this.emit('play-success-sound', {});
+            });
+
+            this.daWs.on('message', async (data) => {
+                const msg = JSON.parse(data);
+                if (msg.id === 1 && msg.result && msg.result.client) {
+                    try {
+                        const subRes = await fetch('https://www.donationalerts.com/api/v1/centrifuge/subscribe', {
+                            method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channels: [`$alerts:donation_${userId}`], client: msg.result.client })
+                        });
+                        const subData = await subRes.json();
+                        this.daWs.send(JSON.stringify({ "params": { "channel": `$alerts:donation_${userId}`, "token": subData.channels[0].token }, "method": 1, "id": 2 }));
+                    } catch (err) {}
+                }
+                let result = msg.result || msg;
+                if (result && result.channel === `$alerts:donation_${userId}` && result.data && result.data.data) {
+                    try {
+                        let don = typeof result.data.data === 'string' ? JSON.parse(result.data.data) : result.data.data;
+                        if (don.amount) this.processGenericDonation(don.id, don.username, don.amount, don.currency, 'DA');
+                    } catch (e) {}
+                }
+            });
+            this.daWs.on('close', () => { this.statusText.da = 'Соединение разорвано'; this.broadcastStatus(); });
+        } catch (err) { this.statusText.da = `Ошибка: ${err.message}`; this.broadcastStatus(); }
+    }
+
+    disconnectDa() {
+        if (this.daWs) { this.daWs.close(); this.daWs = null; }
+        this.statusText.da = 'Отключено'; this.broadcastStatus();
+    }
+
+    async connectDp(apiKey) {
+        if (!apiKey) return;
+        if (this.dpInterval) clearInterval(this.dpInterval);
+        this.statusText.dp = 'Подключение...'; this.broadcastStatus();
+        try {
+            const res = await fetch('https://donatepay.ru/api/v1/transactions', {
+                method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ access_token: apiKey, limit: '1', type: 'donation', status: 'success' })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                this.statusText.dp = 'Успешно подключено'; this.broadcastStatus();
+                if (data.data && data.data.length > 0) this.lastDpDonationId = data.data[0].id;
+                this.dpInterval = setInterval(async () => {
+                    try {
+                        const r = await fetch('https://donatepay.ru/api/v1/transactions', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ access_token: apiKey, limit: '10', type: 'donation', status: 'success' }) });
+                        const d = await r.json();
+                        if (d.status === 'success' && d.data) {
+                            d.data.reverse().forEach(don => {
+                                if (!this.lastDpDonationId || don.id > this.lastDpDonationId) {
+                                    this.lastDpDonationId = don.id; this.processGenericDonation(don.id, don.what || don.name, don.sum, don.currency, 'DP');
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                }, 10000);
+                this.emit('play-success-sound', {});
+            } else throw new Error(data.message || 'Ошибка DP');
+        } catch (e) { this.statusText.dp = `Ошибка: ${e.message}`; this.broadcastStatus(); }
+    }
+
+    disconnectDp() {
+        if (this.dpInterval) { clearInterval(this.dpInterval); this.dpInterval = null; }
+        this.statusText.dp = 'Отключено'; this.broadcastStatus();
+    }
+
+    async connectDx(token) {
+        if (!token) return;
+        if (this.dxInterval) clearInterval(this.dxInterval);
+        this.statusText.dx = 'Подключение...'; this.broadcastStatus();
+        try {
+            const res = await fetch(`https://donatex.gg/api/v1/donations?skip=0&take=1`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                this.statusText.dx = 'Успешно подключено'; this.broadcastStatus();
+                this.dxInterval = setInterval(async () => {
+                    try {
+                        const r = await fetch(`https://donatex.gg/api/v1/donations?skip=0&take=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        if (r.ok) {
+                            const data = await r.json();
+                            if (Array.isArray(data)) data.reverse().forEach(don => {
+                                if (!this.dxProcessedIds.has(don.id)) {
+                                    this.dxProcessedIds.add(don.id);
+                                    if(this.dxProcessedIds.size > 1000) this.dxProcessedIds = new Set(Array.from(this.dxProcessedIds).slice(-100));
+                                    this.processGenericDonation(don.id, don.username, don.amountInRub || don.amount, 'RUB', 'DX');
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                }, 10000);
+                this.emit('play-success-sound', {});
+            } else throw new Error('Ошибка токена DX');
+        } catch (e) { this.statusText.dx = `Ошибка: ${e.message}`; this.broadcastStatus(); }
+    }
+
+    disconnectDx() {
+        if (this.dxInterval) { clearInterval(this.dxInterval); this.dxInterval = null; }
+        this.statusText.dx = 'Отключено'; this.broadcastStatus();
+    }
+}
+
+const sessions = new Map();
+
+function getSession(userId) {
+    if (!sessions.has(userId)) sessions.set(userId, new UserSession(userId, io));
+    return sessions.get(userId);
+}
+
+io.on('connection', (socket) => {
+    let userId = null;
+
+    socket.on('join-room', (uid) => {
+        userId = uid;
+        socket.join(userId);
+        const session = getSession(userId);
+        socket.emit('status-update', session.statusText);
+        socket.emit('settings-updated', session.timerState.settings);
+        
+        // Отправляем сохраненную историю пультам для синхронизации
+        socket.emit('init-remote-data', { history: session.alertHistory });
+        
+        session.broadcastTime();
+    });
+
+    socket.on('update-settings', (config) => {
+        if (!userId) return; const session = getSession(userId);
+        session.timerState.settings = config;
+        session.timerState.settings.originalRouletteSlots = [...(config.rouletteSlots || [])];
+        session.emit('settings-updated', config);
+    });
+
+    socket.on('start-timer', (config) => {
+        if (!userId) return; const session = getSession(userId);
+        session.timerState.settings = config; session.timerState.settings.originalRouletteSlots = [...(config.rouletteSlots || [])];
+        session.timerState.timeLeft = config.initialTime * 60; session.timerState.isRunning = true; session.timerState.isVictory = false; session.timerState.isBonusPhase = false;
+        session.multiplierState.isActive = false; session.rouletteQueue = []; session.isRouletteBusy = false;
+        session.timerState.subbedUsers.clear(); session.timerState.userLikes = {};
+        session.lastProcessedLikesMilestone = null;
+        session.broadcastTime();
+    });
+
+    socket.on('stop-timer', () => { if (!userId) return; const s = getSession(userId); s.timerState.isRunning = false; s.broadcastTime(); });
+    socket.on('toggle-timer', () => { if (!userId) return; const s = getSession(userId); s.timerState.isRunning = !s.timerState.isRunning; s.broadcastTime(); });
+    
+    socket.on('manual-add', (sec) => { 
+        if (!userId) return; const s = getSession(userId); 
+        s.timerState.timeLeft += sec; if(s.timerState.timeLeft > 0) s.timerState.isVictory = false; 
+        s.broadcastTime(); 
+    });
+    socket.on('manual-sub', (sec) => { 
+        if (!userId) return; const s = getSession(userId); 
+        let old = s.timerState.timeLeft;
+        s.timerState.timeLeft = Math.max(0, s.timerState.timeLeft - sec); 
+        if(s.timerState.timeLeft === 0) { s.timerState.isVictory = true; s.timerState.isRunning = false; } 
+        s.broadcastTime(); 
+    });
+    
+    socket.on('manual-trigger-roulette', () => { if (!userId) return; const s = getSession(userId); s.rouletteQueue.push({ username: 'Стример', avatar: 'https://cdn-icons-png.flaticon.com/512/2888/2888661.png', triggerGift: { name: 'Пульт', icon: '' } }); s.checkRouletteQueue(); });
+
+    socket.on('apply-roulette-result', (payload) => {
+        if (!userId) return; const session = getSession(userId);
+        const { winner, user } = payload;
+        let addedTime = 0, eventType = 'roulette', alertText = winner.label, isSpecial = false;
+
+        if (winner.isEliminable) {
+            let updatedSlots = session.timerState.settings.rouletteSlots.filter(s => s.id !== winner.id);
+            if (updatedSlots.length === 0) updatedSlots = [...(session.timerState.settings.originalRouletteSlots || [])];
+            session.timerState.settings.rouletteSlots = updatedSlots; session.emit('settings-updated', session.timerState.settings);
+        }
+
+        if (winner.type === 'set_time') { addedTime = winner.value - session.timerState.timeLeft; session.timerState.timeLeft = winner.value; }
+        else if (winner.type === 'reset_time') { addedTime = -session.timerState.timeLeft; session.timerState.timeLeft = 0; session.timerState.forceVictory = true; }
+        else if (winner.type === 'extra_spin') {
+            alertText = `ЕЩЕ ПРОКРУТ (x${winner.value||1})`; isSpecial = true;
+            for (let i = 0; i < (winner.value||1); i++) session.rouletteQueue.unshift({ username: user.username, avatar: user.avatar, triggerGift: { name: 'Доп. прокрут', icon: 'https://cdn-icons-png.flaticon.com/512/808/808271.png' } });
+        }
+        else if (winner.type === 'multiplier' || winner.type === 'debuff') { session.multiplierState = { isActive: true, type: winner.type === 'debuff' ? 'debuff' : 'buff', value: winner.multiplierValue || 2, timeLeft: winner.value || 60 }; }
+        else if (winner.type === 'multiply_time') { let old = session.timerState.timeLeft; session.timerState.timeLeft = Math.floor(old * (winner.multiplierValue||2)); addedTime = session.timerState.timeLeft - old; alertText = `Время x${winner.multiplierValue}`; }
+        else if (winner.type === 'divide_time') { let old = session.timerState.timeLeft; let nTime = Math.floor(old / Math.max(1, (winner.multiplierValue||2))); if (old > 300 && nTime < 300) nTime = 300; session.timerState.timeLeft = nTime; addedTime = nTime - old; alertText = `Время /${winner.multiplierValue}`; }
+        else if (winner.type === 'special') { isSpecial = true; alertText = winner.textValue || winner.label; }
+        else if (winner.type === 'add_time') { session.timerState.timeLeft += winner.value; addedTime = winner.value; }
+        else if (winner.type === 'sub_time') { let old = session.timerState.timeLeft; let nTime = old - Math.abs(winner.value); if (old > 300 && nTime < 300) nTime = 300; session.timerState.timeLeft = nTime; addedTime = nTime - old; }
+        
+        session.broadcastAlert({ id: Date.now(), username: user.username, avatar: user.avatar, giftName: alertText, timeAdded: addedTime, type: eventType, isSpecial, targetTime: session.timerState.timeLeft });
+        session.broadcastTime();
+    });
+
+    socket.on('roulette-animation-finished', () => { if(!userId) return; const s = getSession(userId); s.isRouletteBusy = false; setTimeout(()=>s.checkRouletteQueue(), 1000); });
+    socket.on('bonus-roll-finished', (time) => { if(!userId) return; const s = getSession(userId); s.timerState.timeLeft = time; s.timerState.isRollingBonus = false; s.timerState.isRunning = true; s.broadcastTime(); });
+
+    socket.on('connect-tiktok', (d) => { if(userId) getSession(userId).connectTikTok(d.username, d.apiKey); });
+    socket.on('disconnect-tiktok', () => { if(userId) getSession(userId).disconnectTikTok(); });
+    socket.on('connect-da-token', (token) => { if(userId) getSession(userId).connectDaToken(token); });
+    socket.on('disconnect-da', () => { if(userId) getSession(userId).disconnectDa(); });
+    socket.on('connect-dp', (apiKey) => { if(userId) getSession(userId).connectDp(apiKey); });
+    socket.on('disconnect-dp', () => { if(userId) getSession(userId).disconnectDp(); });
+    socket.on('connect-dx', (token) => { if(userId) getSession(userId).connectDx(token); });
+    socket.on('disconnect-dx', () => { if(userId) getSession(userId).disconnectDx(); });
+
+    socket.on('create-payment', async (uid) => {
+        try {
+            if (SUPABASE_SERVICE_KEY.includes('ВАШ_SERVICE_ROLE_KEY')) {
+                socket.emit('payment-error', { message: 'Настройте API ключ в server.js' });
+                return;
+            }
+
+            const randomCents = Math.floor(Math.random() * 999) + 1;
+            const amount = parseFloat((50 + (randomCents / 1000)).toFixed(3));
+            
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/crypto_payments`, {
+                method: 'POST',
+                headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+                body: JSON.stringify({ user_id: uid, expected_amount: amount, status: 'pending' })
+            });
+            
+            if (res.ok) {
+                socket.emit('payment-created', { amount, wallet: TON_WALLET });
+            } else {
+                socket.emit('payment-error', { message: `Ошибка БД: убедитесь, что таблица создана.` });
+            }
+        } catch (e) { socket.emit('payment-error', { message: `Ошибка сервера: ${e.message}` }); }
+    });
+
+    socket.on('verify-payment', async ({ uid, amount }) => {
+        try {
+            const expectedNano = Math.floor(amount * 1000000000);
+            
+            const tonRes = await fetch(`https://tonapi.io/v2/blockchain/accounts/${TON_WALLET}/transactions?limit=15`);
+            const data = await tonRes.json();
+            
+            if (!data || !data.transactions) throw new Error('Сбой TonAPI');
+
+            let found = false;
+            for (let tx of data.transactions) {
+                if (!tx.in_msg || !tx.in_msg.value || tx.in_msg.value === '0') continue;
+                
+                const txValue = parseInt(tx.in_msg.value, 10);
+                
+                if (txValue === expectedNano) {
+                    found = true; 
+                    break; 
+                }
+            }
+
+            if (found) {
+                const userRes = await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings?user_id=eq.${uid}&select=subscription_until`, {
+                    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
+                });
+                const userData = await userRes.json();
+                
+                let currentExpire = new Date();
+                if (userData && userData.length > 0 && userData[0].subscription_until) {
+                    const dbDate = new Date(userData[0].subscription_until);
+                    if (dbDate > currentExpire) {
+                        currentExpire = dbDate;
+                    }
+                }
+                
+                currentExpire.setDate(currentExpire.getDate() + 30);
+                
+                await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings?user_id=eq.${uid}`, {
+                    method: 'PATCH',
+                    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subscription_until: currentExpire.toISOString() })
+                });
+
+                await fetch(`${SUPABASE_URL}/rest/v1/crypto_payments?user_id=eq.${uid}&expected_amount=eq.${amount}`, {
+                    method: 'PATCH',
+                    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'success' })
+                });
+
+                socket.emit('payment-success', { expireDate: currentExpire.toISOString() });
+            } else {
+                socket.emit('payment-not-found');
+            }
+        } catch (e) { 
+            console.error(e);
+            socket.emit('payment-error', { message: 'Блокчейн временно недоступен или ошибка запроса.' }); 
+        }
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

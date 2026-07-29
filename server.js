@@ -8,7 +8,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-// --- НАСТРОЙКИ БАЗЫ И ОПЛАТЫ ---
 const SUPABASE_URL = 'https://lqjagftaeejdufwwvjwd.supabase.co';
 // ВАЖНО: ЗАМЕНИТЕ НА ВАШ ИСТИННЫЙ SERVICE_ROLE KEY
 const SUPABASE_SERVICE_KEY = 'sb_publishable_6-9IBhMX9CMVbIackZAJ9g_UUk5FDqx'; 
@@ -38,7 +37,7 @@ class UserSession {
         this.rouletteQueue = [];
         this.isRouletteBusy = false;
         
-        // История событий для стабильности пульта (сохраняем последние 50)
+        // История событий для стабильности пульта
         this.alertHistory = [];
         
         // Подключения TikTok
@@ -101,7 +100,6 @@ class UserSession {
     }
 
     broadcastAlert(data) { 
-        // Сохраняем в историю сервера для восстановления на пульте
         this.alertHistory.unshift(data);
         if (this.alertHistory.length > 50) this.alertHistory.pop();
         this.emit('new-alert', data); 
@@ -317,7 +315,19 @@ class UserSession {
             if (customRule) {
                 eventType = customRule.type;
                 if (customRule.type === 'add') addedTime = this.addTime((customRule.value || 0) * count, nickname);
-                else if (customRule.type === 'sub') addedTime = this.addTime(-Math.abs(customRule.value || 0) * count, nickname);
+                else if (customRule.type === 'sub') {
+                    // Исправление: применяем лимит в 5 минут (300 сек) для обычного убавления
+                    let toSub = Math.abs(customRule.value || 0) * count;
+                    let old = this.timerState.timeLeft;
+                    if (old > 300) {
+                        let nTime = old - toSub;
+                        if (nTime < 300) nTime = 300;
+                        addedTime = nTime - old;
+                        this.timerState.timeLeft = nTime;
+                    } else {
+                        addedTime = 0;
+                    }
+                }
                 else if (customRule.type === 'sub_threshold') {
                     let targetThreshold = parseInt(customRule.threshold, 10) || 0;
                     let amountToSub = Math.abs(customRule.value || 0) * count;
@@ -341,7 +351,7 @@ class UserSession {
             }
         }
 
-        if (addedTime !== 0 || totalCoins > 0 || ['set_time', 'reset_time', 'set', 'reset', 'penalty', 'sub_threshold'].includes(eventType)) { 
+        if (addedTime !== 0 || totalCoins > 0 || ['set_time', 'reset_time', 'set', 'reset', 'penalty', 'sub_threshold', 'sub'].includes(eventType)) { 
             this.broadcastAlert({ id: Date.now(), username: nickname, avatar, giftName, giftIcon, timeAdded: addedTime, type: eventType, amount: count, targetTime: this.timerState.timeLeft }); 
         }
         this.broadcastTime();
@@ -354,8 +364,19 @@ class UserSession {
         const nickname = data.nickname || data.user?.nickname || 'Зритель';
         const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
         
-        if (!isNaN(apiTotalLikes) && apiTotalLikes > this.currentStreamTotalLikes) this.currentStreamTotalLikes = apiTotalLikes;
-        else this.currentStreamTotalLikes += batchLikes;
+        // Исправление: Обнаружение перезапуска стрима и сброс счетчиков
+        if (!isNaN(apiTotalLikes)) {
+            if (apiTotalLikes < this.currentStreamTotalLikes) {
+                this.currentStreamTotalLikes = apiTotalLikes;
+                const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
+                this.lastProcessedLikesMilestone = Math.floor(apiTotalLikes / threshold);
+                this.timerState.userLikes = {};
+            } else {
+                this.currentStreamTotalLikes = apiTotalLikes;
+            }
+        } else {
+            this.currentStreamTotalLikes += batchLikes;
+        }
         
         if (this.timerState.settings.likesRouletteEnabled && this.currentStreamTotalLikes > 0) {
             const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
@@ -544,7 +565,6 @@ io.on('connection', (socket) => {
         socket.emit('status-update', session.statusText);
         socket.emit('settings-updated', session.timerState.settings);
         
-        // Отправляем сохраненную историю пультам для синхронизации
         socket.emit('init-remote-data', { history: session.alertHistory });
         
         session.broadcastTime();
@@ -562,8 +582,14 @@ io.on('connection', (socket) => {
         session.timerState.settings = config; session.timerState.settings.originalRouletteSlots = [...(config.rouletteSlots || [])];
         session.timerState.timeLeft = config.initialTime * 60; session.timerState.isRunning = true; session.timerState.isVictory = false; session.timerState.isBonusPhase = false;
         session.multiplierState.isActive = false; session.rouletteQueue = []; session.isRouletteBusy = false;
-        session.timerState.subbedUsers.clear(); session.timerState.userLikes = {};
+        
+        // Исправление: Полный сброс кэша прошлого стрима при запуске
+        session.timerState.subbedUsers.clear(); 
+        session.timerState.userLikes = {};
+        session.currentStreamTotalLikes = 0;
         session.lastProcessedLikesMilestone = null;
+        session.alertHistory = [];
+        
         session.broadcastTime();
     });
 
@@ -604,10 +630,35 @@ io.on('connection', (socket) => {
         }
         else if (winner.type === 'multiplier' || winner.type === 'debuff') { session.multiplierState = { isActive: true, type: winner.type === 'debuff' ? 'debuff' : 'buff', value: winner.multiplierValue || 2, timeLeft: winner.value || 60 }; }
         else if (winner.type === 'multiply_time') { let old = session.timerState.timeLeft; session.timerState.timeLeft = Math.floor(old * (winner.multiplierValue||2)); addedTime = session.timerState.timeLeft - old; alertText = `Время x${winner.multiplierValue}`; }
-        else if (winner.type === 'divide_time') { let old = session.timerState.timeLeft; let nTime = Math.floor(old / Math.max(1, (winner.multiplierValue||2))); if (old > 300 && nTime < 300) nTime = 300; session.timerState.timeLeft = nTime; addedTime = nTime - old; alertText = `Время /${winner.multiplierValue}`; }
+        else if (winner.type === 'divide_time') { 
+            // Исправление: Лимит в 5 минут для деления
+            let old = session.timerState.timeLeft; 
+            let divisor = Math.max(1, (winner.multiplierValue||2));
+            if (old > 300) {
+                let nTime = Math.floor(old / divisor); 
+                if (nTime < 300) nTime = 300; 
+                session.timerState.timeLeft = nTime; 
+                addedTime = nTime - old; 
+            } else {
+                addedTime = 0;
+            }
+            alertText = `Время /${winner.multiplierValue}`; 
+        }
         else if (winner.type === 'special') { isSpecial = true; alertText = winner.textValue || winner.label; }
         else if (winner.type === 'add_time') { session.timerState.timeLeft += winner.value; addedTime = winner.value; }
-        else if (winner.type === 'sub_time') { let old = session.timerState.timeLeft; let nTime = old - Math.abs(winner.value); if (old > 300 && nTime < 300) nTime = 300; session.timerState.timeLeft = nTime; addedTime = nTime - old; }
+        else if (winner.type === 'sub_time') { 
+            // Исправление: Лимит в 5 минут для убавления
+            let old = session.timerState.timeLeft; 
+            let toSub = Math.abs(winner.value);
+            if (old > 300) {
+                let nTime = old - toSub; 
+                if (nTime < 300) nTime = 300; 
+                session.timerState.timeLeft = nTime; 
+                addedTime = nTime - old; 
+            } else {
+                addedTime = 0;
+            }
+        }
         
         session.broadcastAlert({ id: Date.now(), username: user.username, avatar: user.avatar, giftName: alertText, timeAdded: addedTime, type: eventType, isSpecial, targetTime: session.timerState.timeLeft });
         session.broadcastTime();

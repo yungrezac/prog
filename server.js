@@ -364,14 +364,21 @@ class UserSession {
         const nickname = data.nickname || data.user?.nickname || 'Зритель';
         const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
         
-        // Исправление: Обнаружение перезапуска стрима и сброс счетчиков
+        // --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗАЩИТЫ ОТ ДВОЙНЫХ ПРОКРУТОВ ---
+        // Запоздалые/сбитые события от API больше не сбрасывают вехи.
+        // Перезапуском стрима считается только падение лайков более чем на 50%.
         if (!isNaN(apiTotalLikes)) {
             if (apiTotalLikes < this.currentStreamTotalLikes) {
-                this.currentStreamTotalLikes = apiTotalLikes;
-                const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
-                this.lastProcessedLikesMilestone = Math.floor(apiTotalLikes / threshold);
-                this.timerState.userLikes = {};
+                if (this.currentStreamTotalLikes - apiTotalLikes > (this.currentStreamTotalLikes * 0.5)) {
+                    // Явный перезапуск стрима (сброс лайков)
+                    this.currentStreamTotalLikes = apiTotalLikes;
+                    const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
+                    this.lastProcessedLikesMilestone = Math.floor(apiTotalLikes / threshold);
+                    this.timerState.userLikes = {};
+                }
+                // Иначе просто игнорируем запоздалое событие (apiTotalLikes меньше текущего, но падение небольшое)
             } else {
+                // Нормальный прирост лайков
                 this.currentStreamTotalLikes = apiTotalLikes;
             }
         } else {

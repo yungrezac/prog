@@ -37,6 +37,10 @@ class UserSession {
         this.rouletteQueue = [];
         this.isRouletteBusy = false;
         
+        // Предохранители для предотвращения вечных блокировок
+        this.rouletteFailsafe = null;
+        this.bonusFailsafe = null;
+        
         // История событий для стабильности пульта
         this.alertHistory = [];
         
@@ -74,7 +78,21 @@ class UserSession {
                         this.timerState.timeLeft = 0; this.timerState.isBonusPhase = true; this.timerState.isRollingBonus = true; this.timerState.isRunning = false;
                         const min = this.timerState.settings.bonusMin || 60; const max = this.timerState.settings.bonusMax || 300;
                         const bonusTime = Math.floor(Math.random() * (max - min + 1)) + min;
+                        
                         this.emit('start-bonus-roll', { username: this.timerState.bonusTriggerUser || 'Зритель', amount: bonusTime });
+
+                        // --- ИСПРАВЛЕНИЕ: Предохранитель зависания бонусной рулетки ---
+                        if (this.bonusFailsafe) clearTimeout(this.bonusFailsafe);
+                        this.bonusFailsafe = setTimeout(() => {
+                            if (this.timerState.isRollingBonus) {
+                                console.log(`[Failsafe] Авторазблокировка бонусной рулетки для ${this.userId}`);
+                                this.timerState.timeLeft = bonusTime; 
+                                this.timerState.isRollingBonus = false;
+                                this.timerState.isRunning = true;
+                                this.broadcastTime();
+                            }
+                        }, 20000); // Снимет блокировку через 20 секунд, если виджет завис
+                        
                     } else {
                         this.timerState.timeLeft = 0; this.timerState.isRunning = false; this.timerState.isVictory = true;
                     }
@@ -149,7 +167,24 @@ class UserSession {
 
     checkRouletteQueue() {
         if (this.isRouletteBusy || this.rouletteQueue.length === 0) return;
-        this.isRouletteBusy = true; this.spinRoulette(this.rouletteQueue.shift());
+        this.isRouletteBusy = true; 
+        
+        const nextUser = this.rouletteQueue.shift();
+        this.spinRoulette(nextUser);
+
+        // --- ИСПРАВЛЕНИЕ: Предохранитель зависания очереди рулетки ---
+        if (this.rouletteFailsafe) clearTimeout(this.rouletteFailsafe);
+        this.rouletteFailsafe = setTimeout(() => {
+            if (this.isRouletteBusy) {
+                console.log(`[Failsafe] Авторазблокировка очереди рулетки для ${this.userId}. Виджет не ответил.`);
+                this.isRouletteBusy = false;
+                
+                // Если произошел таймаут, мы упустили начисление приза, 
+                // так как оно происходит только по сигналу apply-roulette-result от клиента.
+                // Но главное — мы разблокировали очередь, и следующий человек сможет крутить.
+                this.checkRouletteQueue();
+            }
+        }, 20000); // Снимет блокировку через 20 секунд
     }
 
     processGenericDonation(id, username, amount, currency, platform) {
@@ -316,7 +351,6 @@ class UserSession {
                 eventType = customRule.type;
                 if (customRule.type === 'add') addedTime = this.addTime((customRule.value || 0) * count, nickname);
                 else if (customRule.type === 'sub') {
-                    // Исправление: применяем лимит в 5 минут (300 сек) для обычного убавления
                     let toSub = Math.abs(customRule.value || 0) * count;
                     let old = this.timerState.timeLeft;
                     if (old > 300) {
@@ -364,21 +398,15 @@ class UserSession {
         const nickname = data.nickname || data.user?.nickname || 'Зритель';
         const avatar = data.profilePictureUrl || data.user?.avatarUrl || 'https://via.placeholder.com/48';
         
-        // --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗАЩИТЫ ОТ ДВОЙНЫХ ПРОКРУТОВ ---
-        // Запоздалые/сбитые события от API больше не сбрасывают вехи.
-        // Перезапуском стрима считается только падение лайков более чем на 50%.
         if (!isNaN(apiTotalLikes)) {
             if (apiTotalLikes < this.currentStreamTotalLikes) {
                 if (this.currentStreamTotalLikes - apiTotalLikes > (this.currentStreamTotalLikes * 0.5)) {
-                    // Явный перезапуск стрима (сброс лайков)
                     this.currentStreamTotalLikes = apiTotalLikes;
                     const threshold = parseInt(this.timerState.settings.likesRouletteThreshold) || 100000;
                     this.lastProcessedLikesMilestone = Math.floor(apiTotalLikes / threshold);
                     this.timerState.userLikes = {};
                 }
-                // Иначе просто игнорируем запоздалое событие (apiTotalLikes меньше текущего, но падение небольшое)
             } else {
-                // Нормальный прирост лайков
                 this.currentStreamTotalLikes = apiTotalLikes;
             }
         } else {
@@ -588,9 +616,14 @@ io.on('connection', (socket) => {
         if (!userId) return; const session = getSession(userId);
         session.timerState.settings = config; session.timerState.settings.originalRouletteSlots = [...(config.rouletteSlots || [])];
         session.timerState.timeLeft = config.initialTime * 60; session.timerState.isRunning = true; session.timerState.isVictory = false; session.timerState.isBonusPhase = false;
-        session.multiplierState.isActive = false; session.rouletteQueue = []; session.isRouletteBusy = false;
+        session.multiplierState.isActive = false; 
         
-        // Исправление: Полный сброс кэша прошлого стрима при запуске
+        // Очистка зависшей очереди и предохранителей при рестарте
+        session.rouletteQueue = []; 
+        session.isRouletteBusy = false;
+        if (session.rouletteFailsafe) clearTimeout(session.rouletteFailsafe);
+        if (session.bonusFailsafe) clearTimeout(session.bonusFailsafe);
+        
         session.timerState.subbedUsers.clear(); 
         session.timerState.userLikes = {};
         session.currentStreamTotalLikes = 0;
@@ -638,7 +671,6 @@ io.on('connection', (socket) => {
         else if (winner.type === 'multiplier' || winner.type === 'debuff') { session.multiplierState = { isActive: true, type: winner.type === 'debuff' ? 'debuff' : 'buff', value: winner.multiplierValue || 2, timeLeft: winner.value || 60 }; }
         else if (winner.type === 'multiply_time') { let old = session.timerState.timeLeft; session.timerState.timeLeft = Math.floor(old * (winner.multiplierValue||2)); addedTime = session.timerState.timeLeft - old; alertText = `Время x${winner.multiplierValue}`; }
         else if (winner.type === 'divide_time') { 
-            // Исправление: Лимит в 5 минут для деления
             let old = session.timerState.timeLeft; 
             let divisor = Math.max(1, (winner.multiplierValue||2));
             if (old > 300) {
@@ -654,7 +686,6 @@ io.on('connection', (socket) => {
         else if (winner.type === 'special') { isSpecial = true; alertText = winner.textValue || winner.label; }
         else if (winner.type === 'add_time') { session.timerState.timeLeft += winner.value; addedTime = winner.value; }
         else if (winner.type === 'sub_time') { 
-            // Исправление: Лимит в 5 минут для убавления
             let old = session.timerState.timeLeft; 
             let toSub = Math.abs(winner.value);
             if (old > 300) {
@@ -671,8 +702,29 @@ io.on('connection', (socket) => {
         session.broadcastTime();
     });
 
-    socket.on('roulette-animation-finished', () => { if(!userId) return; const s = getSession(userId); s.isRouletteBusy = false; setTimeout(()=>s.checkRouletteQueue(), 1000); });
-    socket.on('bonus-roll-finished', (time) => { if(!userId) return; const s = getSession(userId); s.timerState.timeLeft = time; s.timerState.isRollingBonus = false; s.timerState.isRunning = true; s.broadcastTime(); });
+    socket.on('roulette-animation-finished', () => { 
+        if(!userId) return; 
+        const s = getSession(userId); 
+        
+        // --- ИСПРАВЛЕНИЕ: Отключаем предохранитель, так как ответ получен вовремя ---
+        if (s.rouletteFailsafe) clearTimeout(s.rouletteFailsafe);
+        
+        s.isRouletteBusy = false; 
+        setTimeout(()=>s.checkRouletteQueue(), 1000); 
+    });
+    
+    socket.on('bonus-roll-finished', (time) => { 
+        if(!userId) return; 
+        const s = getSession(userId); 
+        
+        // --- ИСПРАВЛЕНИЕ: Отключаем предохранитель бонусного броска ---
+        if (s.bonusFailsafe) clearTimeout(s.bonusFailsafe);
+        
+        s.timerState.timeLeft = time; 
+        s.timerState.isRollingBonus = false; 
+        s.timerState.isRunning = true; 
+        s.broadcastTime(); 
+    });
 
     socket.on('connect-tiktok', (d) => { if(userId) getSession(userId).connectTikTok(d.username, d.apiKey); });
     socket.on('disconnect-tiktok', () => { if(userId) getSession(userId).disconnectTikTok(); });

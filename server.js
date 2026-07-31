@@ -214,7 +214,7 @@ class UserSession {
                 this.timerState.timeLeft = nTime; 
                 addedTime = nTime - old; 
             }
-            alertText = `АТАКА ОТ ${senderName.toUpperCase()}!`;
+            alertText = `ОТ ${senderName.toUpperCase()}!`;
         } else if (type === 'add_time') {
             this.timerState.timeLeft += value;
             addedTime = value;
@@ -920,7 +920,7 @@ io.on('connection', (socket) => {
                 let isNewUser = true;
                 
                 if (userData && userData.length > 0) {
-                    isNewUser = false; // Запись уже существует
+                    isNewUser = false;
                     if (userData[0].subscription_until) {
                         const dbDate = new Date(userData[0].subscription_until);
                         if (dbDate > currentExpire) {
@@ -932,14 +932,12 @@ io.on('connection', (socket) => {
                 currentExpire.setDate(currentExpire.getDate() + 30);
                 
                 if (isNewUser) {
-                    // Если записи нет (новый юзер), создаем её с помощью POST
                     await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings`, {
                         method: 'POST',
                         headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: uid, subscription_until: currentExpire.toISOString(), config: {} })
                     });
                 } else {
-                    // Если запись есть, обновляем только время через PATCH
                     await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings?user_id=eq.${uid}`, {
                         method: 'PATCH',
                         headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },

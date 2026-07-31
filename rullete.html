@@ -72,6 +72,13 @@
             const size = text.length > threshold ? Math.max(minSize, defaultSize * (threshold / text.length)) : defaultSize;
             return <span className={className} style={{ ...style, fontSize: `${size}rem`, textShadow: shadow, whiteSpace: wrap ? 'normal' : 'word-break', lineHeight: wrap ? '1.1' : 'inherit' }}>{text}</span>;
         }
+        
+        // НОВАЯ ФУНКЦИЯ ДЛЯ ВЫВОДА ТАРГЕТОВ
+        const getTargetText = (target) => {
+            if (target === 'opponents') return { text: "АТАКА НА ПРОТИВНИКА!", color: "#ef4444", glow: "rgba(239, 68, 68, 0.8)" };
+            if (target === 'all') return { text: "ВЛИЯЕТ НА ВСЕХ!", color: "#a855f7", glow: "rgba(168, 85, 247, 0.8)" };
+            return { text: "ПРИМЕНЯЕТСЯ К ВАМ", color: "#10b981", glow: "rgba(52, 211, 153, 0.8)" };
+        };
 
         function RouletteView() {
             const [state, setState] = useState({ isActive: false, isIntro: false, spinMode: 'normal', items: [], offset: 0, transitionDuration: 0, winner: null, isFinished: false, user: null, config: {} });
@@ -132,7 +139,7 @@
                             
                             setTimeout(() => {
                                 setState(p => ({ ...p, isFinished: true })); socket.emit('apply-roulette-result', { winner, user });
-                                setTimeout(() => { setState(p => ({ ...p, isActive: false })); socket.emit('roulette-animation-finished'); }, 7000); 
+                                setTimeout(() => { setState(p => ({ ...p, isActive: false })); socket.emit('roulette-animation-finished'); }, 8000); // Увеличили время показа результата для чтения таргета
                             }, 5500);
                         }));
                     }, 3000);
@@ -239,14 +246,23 @@
                                 </div>
                             ) : (
                                 <div className="w-[1200px] flex flex-col items-center justify-center bonus-pop drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
-                                    <div className="bg-black/60 backdrop-blur-xl rounded-[3rem] border-4 flex flex-col items-center justify-center w-[900px] min-h-[700px] p-10" style={{ borderColor: state.winner.color, boxShadow: `0 0 80px ${state.winner.color}60` }}>
+                                    <div className="bg-black/60 backdrop-blur-xl rounded-[3rem] border-4 flex flex-col items-center justify-center w-[900px] min-h-[600px] p-10" style={{ borderColor: state.winner.color, boxShadow: `0 0 80px ${state.winner.color}60` }}>
                                         {state.spinMode === 'bonus' ? <span className="text-4xl text-slate-300 font-bold uppercase tracking-widest mb-6" style={{ textShadow: getStroke(false, enableStroke) }}>Бонус:</span> : 
                                         <div className="flex flex-col items-center gap-4 mb-6 text-center">
-                                            {state.user?.isLikesRoulette ? <i className="fa-solid fa-heart text-rose-500 text-[10rem] animate-pulse"></i> : <img src={state.user?.avatar} className="w-56 h-56 rounded-full border-[6px] border-indigo-500" />}
-                                            <AutoScaleText text={state.user?.username} defaultSize={4.5} minSize={2} maxChars={12} className="font-black text-white leading-none mb-6" shadow={getStroke(true, enableStroke, '0 6px 15px rgba(0,0,0,0.6)')} />
-                                            <span className="text-slate-300 font-bold uppercase text-3xl tracking-widest" style={{ textShadow: getStroke(false, enableStroke) }}>Выбивает:</span>
+                                            {state.user?.isLikesRoulette ? <i className="fa-solid fa-heart text-rose-500 text-[10rem] animate-pulse"></i> : <img src={state.user?.avatar} className="w-48 h-48 rounded-full border-[6px] border-indigo-500" />}
+                                            <AutoScaleText text={state.user?.username} defaultSize={4} minSize={2} maxChars={12} className="font-black text-white leading-none mb-4" shadow={getStroke(true, enableStroke, '0 6px 15px rgba(0,0,0,0.6)')} />
+                                            <span className="text-slate-300 font-bold uppercase text-2xl tracking-widest" style={{ textShadow: getStroke(false, enableStroke) }}>Выбивает:</span>
                                         </div>}
                                         <AutoScaleText text={state.winner.label} defaultSize={6.5} minSize={2.5} maxChars={12} wrap={true} className="leading-[1] font-black text-white text-center transform hover:scale-105 transition-transform" shadow={getStroke(true, enableStroke, `0px 10px 40px ${state.winner.color}, 0px 0px 80px ${state.winner.color}`)} />
+                                        
+                                        {/* БЛОК ИНДИКАЦИИ ТАРГЕТА */}
+                                        {state.winner.target && state.winner.target !== 'me' && (
+                                            <div className="mt-8 px-10 py-4 bg-black/60 rounded-[2rem] border-2 border-white/20 shadow-2xl animate-pulse">
+                                                <span className="text-5xl font-black uppercase tracking-widest text-center block" style={{ color: getTargetText(state.winner.target).color, textShadow: getStroke(true, enableStroke, `0 0 30px ${getTargetText(state.winner.target).glow}, 0 0 60px ${getTargetText(state.winner.target).glow}`) }}>
+                                                    {getTargetText(state.winner.target).text}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

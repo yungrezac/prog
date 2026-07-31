@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TikTimer - Preline UI</title>
     
-    <!-- Tailwind CSS (с конфигурацией для Preline) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -20,36 +19,24 @@
         }
     </script>
     
-    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Backend & Libs -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
-    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;800&family=Comic+Neue:wght@700&family=Roboto:wght@700;900&family=Open+Sans:wght@700;800&family=Oswald:wght@700&family=Raleway:wght@800;900&family=Nunito:wght@800;900&family=Playfair+Display:wght@700;900&family=Caveat:wght@700&family=Rubik:wght@700;900&family=Pacifico&family=Yanone+Kaffeesatz:wght@700&family=Comfortaa:wght@700&family=Ruslan+Display&family=Kelly+Slab&family=Roboto+Slab:wght@700;900&family=Lobster&family=Alice&family=PT+Sans:wght@700&display=swap');
         
-        body { 
-            background-color: #0a0a0a;
-            color: #d4d4d4; 
-            overflow: hidden; 
-            font-family: 'Inter', sans-serif;
-        }
-        
-        /* Preline Scrollbar */
+        body { background-color: #0a0a0a; color: #d4d4d4; overflow: hidden; font-family: 'Inter', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background-color: #404040; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background-color: #525252; }
-
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         .animate-shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -61,8 +48,6 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        
-        // Mock socket for local preview if missing
         const socket = typeof io !== 'undefined' ? io() : { emit: ()=>{}, on: ()=>{}, off: ()=>{} }; 
 
         const supabaseUrl = 'https://lqjagftaeejdufwwvjwd.supabase.co';
@@ -78,7 +63,6 @@
             } catch (err) { }
         });
 
-        // Надежный React-компонент переключателя для решения багов с булевыми значениями
         const Switch = ({ checked, onChange, disabled = false }) => (
             <label className={`relative inline-flex items-center shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input type="checkbox" className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
@@ -86,10 +70,9 @@
             </label>
         );
 
-        // Preline Input
-        const Input = ({ type = "text", value, onChange, placeholder, className = "", required = false, title = "", readOnly = false }) => (
+        const Input = ({ type = "text", value, onChange, placeholder, className = "", required = false, title = "" }) => (
             <input 
-                type={type} value={value} onChange={onChange} placeholder={placeholder} required={required} title={title} readOnly={readOnly}
+                type={type} value={value} onChange={onChange} placeholder={placeholder} required={required} title={title}
                 className={`py-2.5 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:placeholder-neutral-500 dark:focus:ring-neutral-600 ${className}`} 
             />
         );
@@ -274,10 +257,9 @@
                                 <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Полный доступ к <span className="text-blue-600 dark:text-blue-500">PRO версии</span></h1>
                                 <ul className="space-y-4 text-sm text-gray-600 dark:text-neutral-400">
                                     <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Неограниченное время работы сессий</li>
+                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Мультиплеер</li>
                                     <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Интерактивная рулетка времени и призов</li>
-                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Кастомные триггеры для любых подарков</li>
-                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Поддержка DonationAlerts и DonatePay</li>
-                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> <b>NEW!</b>Мультиплеер</li>
+                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Поддержка DonationAlerts, DonatePay, DonateX</li>
                                 </ul>
                             </div>
                             <div className="mt-10 border-t border-gray-200 dark:border-neutral-700 pt-6 flex justify-between items-center text-sm">
@@ -300,15 +282,14 @@
             const [modal, setModal] = useState({ isOpen: false, key: null });
             const [showRenew, setShowRenew] = useState(false);
             
-            // State для мультиплеера
+            // Multiplayer state
             const [roomState, setRoomState] = useState({ id: null, members: [] });
             const [joinRoomId, setJoinRoomId] = useState('');
 
             const daysLeft = subUntil ? Math.max(0, Math.ceil((new Date(subUntil) - new Date()) / (1000 * 60 * 60 * 24))) : 0;
 
             const defConfig = {
-                username: '', ttApiKey: '', daToken: '', dpApiKey: '', dxToken: '', 
-                nickname: 'Игрок', // Для мультиплеера
+                username: '', ttApiKey: '', daToken: '', dpApiKey: '', dxToken: '', nickname: 'Игрок',
                 initialTime: 60, bonusEnabled: true, bonusMin: 60, bonusMax: 300,
                 isPenaltyEnabled: true, penaltyAmount: 600, penaltyThreshold: 300, giftPenalty: null,
                 isSetTimeEnabled: true, giftSetTime: null, setTimeValue: 300, 
@@ -342,11 +323,16 @@
 
                 socket.on('status-update', s => setStatus(s));
                 socket.on('timer-tick', s => setIsRunning(s.isRunning));
-                socket.on('room-state', state => setRoomState(state)); // Для мультиплеера
+                socket.on('room-state', state => setRoomState(state)); // Подключаем статус комнат
                 
                 const onMessage = (e) => { if (e.data && e.data.type === 'da_auth') { const hash = new URLSearchParams(e.data.hash); const token = hash.get('access_token'); if (token) socket.emit('connect-da-token', token); } };
                 window.addEventListener('message', onMessage);
-                return () => { socket.off('status-update'); socket.off('timer-tick'); socket.off('room-state'); window.removeEventListener('message', onMessage); };
+                return () => { 
+                    socket.off('status-update'); 
+                    socket.off('timer-tick'); 
+                    socket.off('room-state');
+                    window.removeEventListener('message', onMessage); 
+                };
             }, [user.id]);
 
             const handleSave = async () => { 
@@ -397,10 +383,10 @@
                         <nav className="p-4 flex-1 overflow-y-auto space-y-1 custom-scrollbar" style={{ fontFamily: 'Inter' }}>
                             <ul className="space-y-1.5">
                                 <TabBtn id="connect" icon="fa-solid fa-link" text="Интеграции" />
+                                <TabBtn id="rooms" icon="fa-solid fa-swords" text="Мультиплеер" />
                                 <TabBtn id="timer" icon="fa-solid fa-stopwatch" text="Время & Лайки" />
                                 <TabBtn id="buffs" icon="fa-solid fa-wand-magic-sparkles" text="Баффы & Триггеры" />
                                 <TabBtn id="roulette" icon="fa-solid fa-dharmachakra" text="Рулетка" />
-                                <TabBtn id="rooms" icon="fa-solid fa-swords" text="Мультиплеер" />
                                 <TabBtn id="style" icon="fa-solid fa-palette" text="Дизайн виджета" />
                                 <TabBtn id="obs" icon="fa-solid fa-video" text="Ссылки для OBS" />
                             </ul>
@@ -435,6 +421,7 @@
                                 <div className="space-y-4 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Подключения платформ</h2>
                                     
+                                    {}
                                     <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 md:p-6 dark:bg-neutral-900 dark:border-neutral-800 hover:border-blue-500/30 transition-colors">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                                             <div className="size-12 bg-black text-white flex items-center justify-center rounded-xl shrink-0 dark:bg-neutral-800"><i className="fa-brands fa-tiktok text-2xl"></i></div>
@@ -446,17 +433,14 @@
                                         </div>
                                     </div>
                                     
-                                    {/* Никнейм для баттлов */}
-                                    <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 md:p-6 dark:bg-neutral-900 dark:border-neutral-800 hover:border-blue-500/30 transition-colors">
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                                            <div className="size-12 bg-blue-100 text-blue-600 flex items-center justify-center rounded-xl shrink-0 dark:bg-blue-900/30 dark:text-blue-400"><i className="fa-solid fa-user-ninja text-xl"></i></div>
-                                            <div className="w-full sm:w-1/4 shrink-0">
-                                                <h3 className="font-bold text-gray-800 dark:text-white">Никнейм для баттлов</h3>
-                                                <span className="text-xs font-medium text-gray-500">Будет виден в комнатах</span>
-                                            </div>
-                                            <div className="flex-1" style={{ fontFamily: 'Inter' }}>
-                                                <Input value={config.nickname} onChange={e=>setConfig({...config, nickname: e.target.value})} placeholder="Например: Стример 1" />
-                                            </div>
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm dark:bg-neutral-900 dark:border-neutral-800">
+                                        <div className="size-12 bg-indigo-100 text-indigo-600 flex items-center justify-center rounded-xl shrink-0 dark:bg-indigo-500/10 dark:text-indigo-500"><i className="fa-solid fa-user-ninja text-xl"></i></div>
+                                        <div className="w-full sm:w-1/4 shrink-0">
+                                            <h3 className="font-bold text-gray-800 dark:text-white">Никнейм в Мультиплеере</h3>
+                                            <span className="text-xs text-gray-500">Отображается противникам</span>
+                                        </div>
+                                        <div className="flex-1" style={{ fontFamily: 'Inter' }}>
+                                            <Input value={config.nickname} onChange={e=>setConfig({...config, nickname: e.target.value})} placeholder="Ваш ник, напр: Стример 1" />
                                         </div>
                                     </div>
 
@@ -480,6 +464,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'rooms' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <div className="flex items-center justify-between mb-6">
@@ -491,7 +476,6 @@
                                     </div>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {/* Создание/Вход */}
                                         <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800">
                                             {roomState.id ? (
                                                 <div className="flex flex-col items-center text-center space-y-4">
@@ -506,7 +490,7 @@
                                                         <span className="font-mono text-2xl font-bold tracking-widest text-blue-600 dark:text-blue-400">{roomState.id}</span>
                                                         <button onClick={() => navigator.clipboard.writeText(roomState.id)} className="text-gray-500 hover:text-blue-500 transition ml-2"><i className="fa-solid fa-copy"></i></button>
                                                     </div>
-                                                    <button onClick={() => socket.emit('leave-mp-room')} className="mt-4 w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-500 dark:hover:bg-red-900/20 transition" style={{ fontFamily: 'Inter' }}>
+                                                    <button onClick={() => socket.emit('leave-mp-room')} className="mt-4 w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-500 dark:hover:bg-red-900/20 transition">
                                                         Покинуть комнату
                                                     </button>
                                                 </div>
@@ -514,8 +498,8 @@
                                                 <div className="space-y-6">
                                                     <div>
                                                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">Создать комнату</h3>
-                                                        <button onClick={() => socket.emit('create-mp-room', config.nickname)} className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition" style={{ fontFamily: 'Inter' }}>
-                                                            <i className="fa-solid fa-plus"></i> Создать новый баттл
+                                                        <button onClick={() => socket.emit('create-mp-room', config.nickname)} className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                                                            <i className="fa-solid fa-plus"></i> Создат комнату
                                                         </button>
                                                     </div>
                                                     <div className="relative flex items-center py-2">
@@ -527,7 +511,7 @@
                                                         <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">Присоединиться</h3>
                                                         <div className="flex gap-2">
                                                             <Input value={joinRoomId} onChange={e=>setJoinRoomId(e.target.value.toUpperCase())} placeholder="Введите код комнаты" className="font-mono font-bold tracking-widest uppercase" />
-                                                            <button onClick={() => { if(joinRoomId) socket.emit('join-mp-room', { roomId: joinRoomId, nickname: config.nickname }) }} className="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg bg-gray-800 text-white hover:bg-gray-900 dark:bg-white dark:text-black transition" style={{ fontFamily: 'Inter' }}>
+                                                            <button onClick={() => { if(joinRoomId) socket.emit('join-mp-room', { roomId: joinRoomId, nickname: config.nickname }) }} className="py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg bg-gray-800 text-white hover:bg-gray-900 dark:bg-white dark:text-black transition">
                                                                 Войти
                                                             </button>
                                                         </div>
@@ -536,16 +520,15 @@
                                             )}
                                         </div>
 
-                                        {/* Участники */}
                                         <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 flex flex-col">
                                             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Участники ({roomState.members.length})</h3>
-                                            <div className="flex-1 overflow-y-auto space-y-2 max-h-[300px] custom-scrollbar">
+                                            <div className="flex-1 overflow-y-auto space-y-2">
                                                 {roomState.members.length === 0 ? (
                                                     <div className="text-center py-10 text-gray-500 text-sm">Вы не состоите в комнате</div>
                                                 ) : (
                                                     roomState.members.map((m, idx) => (
                                                         <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 dark:bg-neutral-950 dark:border-neutral-800">
-                                                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg dark:bg-blue-900/30 dark:text-blue-400 shrink-0">
+                                                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg dark:bg-blue-900/30 dark:text-blue-400">
                                                                 {m.nickname ? m.nickname.charAt(0).toUpperCase() : '?'}
                                                             </div>
                                                             <div className="flex flex-col">
@@ -563,6 +546,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'timer' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Настройки Времени</h2>
@@ -615,6 +599,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'buffs' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Спец. Подарки и Триггеры</h2>
@@ -668,7 +653,6 @@
                                             {config.customGifts.map(cg => (
                                                 <div key={cg.id} className={`flex flex-col sm:flex-row gap-3 sm:items-center p-3 border rounded-xl transition-colors ${cg.isEnabled ? 'bg-white border-gray-200 dark:bg-neutral-950 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-60 dark:bg-neutral-900 dark:border-neutral-800'}`}>
                                                     
-                                                    {/* Proper Toggle for List item */}
                                                     <Switch checked={cg.isEnabled} onChange={(val) => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, isEnabled: val}:c)}))} />
                                                     
                                                     <div className="flex-1 flex items-center gap-2 p-2.5 border border-gray-200 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:border-neutral-700 dark:hover:bg-neutral-800 transition" onClick={() => setModal({ isOpen: true, key: `custom_${cg.id}` })}>
@@ -704,6 +688,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'roulette' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Интерактивная Рулетка</h2>
@@ -741,26 +726,23 @@
                                             {config.rouletteSlots.map(slot => (
                                                 <div key={slot.id} className={`flex flex-wrap md:flex-nowrap gap-3 items-center p-3 border rounded-xl transition-colors ${slot.isEnabled !== false ? 'bg-white border-gray-200 dark:bg-neutral-950 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-60 dark:bg-neutral-900 dark:border-neutral-800'}`}>
                                                     
-                                                    {/* Proper Toggle for List item */}
                                                     <Switch checked={slot.isEnabled !== false} onChange={(val) => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEnabled: val}:s)}))} />
                                                     
                                                     <input type="color" value={slot.color} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, color: e.target.value}:s)}))} className="size-8 rounded border-none bg-transparent cursor-pointer shrink-0" />
                                                     
-                                                    <Input value={slot.label} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, label: e.target.value}:s)}))} className="flex-1 min-w-[120px] font-bold border-b border-x-0 border-t-0 border-gray-200 rounded-none bg-transparent px-2 focus:ring-0 focus:border-blue-500 dark:border-neutral-700 dark:bg-transparent" placeholder="Текст слота" />
+                                                    <Input value={slot.label} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, label: e.target.value}:s)}))} className="flex-1 min-w-[150px] font-bold border-b border-x-0 border-t-0 border-gray-200 rounded-none bg-transparent px-2 focus:ring-0 focus:border-blue-500 dark:border-neutral-700 dark:bg-transparent" placeholder="Текст слота" />
                                                     
-                                                    <div className="flex gap-2 flex-wrap w-full md:w-auto" style={{ fontFamily: 'Inter' }}>
-                                                        <select value={slot.type} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, type: e.target.value}:s)}))} className="py-2.5 px-3 block border-gray-200 rounded-lg text-sm font-semibold focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 outline-none">
+                                                    <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto" style={{ fontFamily: 'Inter' }}>
+                                                        <select value={slot.type} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, type: e.target.value}:s)}))} className="py-2.5 px-3 w-full sm:w-auto block border-gray-200 rounded-lg text-sm font-semibold focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 outline-none">
                                                             <option value="add_time">+ Время</option><option value="sub_time">- Время</option><option value="multiply_time">Умножить (*)</option><option value="divide_time">Разделить (/)</option><option value="set_time">= Время</option><option value="multiplier">Бафф x</option><option value="debuff">Дебафф x</option><option value="extra_spin">Еще прокрут</option><option value="reset_time">Сброс (0)</option><option value="special">Приз</option>
                                                         </select>
                                                         
-                                                        {/* НОВЫЙ СЕЛЕКТ ТАРГЕТА */}
-                                                        {['add_time','sub_time','multiply_time','divide_time','set_time','multiplier','debuff','reset_time'].includes(slot.type) && (
-                                                            <select value={slot.target || 'me'} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, target: e.target.value}:s)}))} className="py-2.5 px-3 block border-gray-200 rounded-lg text-sm font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 outline-none">
-                                                                <option value="me">Мне</option>
-                                                                <option value="opponents">Противникам</option>
-                                                                <option value="all">Всем</option>
-                                                            </select>
-                                                        )}
+                                                        {/* Target Selector for Multiplayer */}
+                                                        <select value={slot.target || 'me'} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, target: e.target.value}:s)}))} className="py-2.5 px-3 w-full sm:w-auto block border-gray-200 rounded-lg text-sm font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300 outline-none">
+                                                            <option value="me">Мне</option>
+                                                            <option value="opponents">Противнику</option>
+                                                            <option value="all">Всем</option>
+                                                        </select>
                                                         
                                                         {['multiply_time','divide_time','multiplier','debuff'].includes(slot.type) && <Input type="number" value={slot.multiplierValue||2} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, multiplierValue: Number(e.target.value)}:s)}))} className="w-16 text-center font-bold" placeholder="x" />}
                                                         {['add_time','sub_time','set_time','multiplier','debuff','extra_spin'].includes(slot.type) && <Input type="number" value={slot.value} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, value: Number(e.target.value)}:s)}))} className="w-20 text-center font-bold" placeholder="Знач." />}
@@ -780,6 +762,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'style' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Дизайн Виджета</h2>
@@ -835,6 +818,7 @@
                                 </div>
                             )}
 
+                            {}
                             {activeTab === 'obs' && (
                                 <div className="space-y-6 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Ссылки для встраивания в OBS</h2>
@@ -907,8 +891,17 @@
             const [subUntil, setSubUntil] = useState(null);
 
             const checkSub = async (uid) => {
-                const { data } = await supabase.from('ttimer_settings').select('subscription_until').eq('user_id', uid).single();
-                if (data) setSubUntil(data.subscription_until); else setSubUntil(null);
+                // ИСПРАВЛЕНИЕ: Используем maybeSingle() вместо single()
+                const { data, error } = await supabase.from('ttimer_settings').select('subscription_until').eq('user_id', uid).maybeSingle();
+                
+                if (data) {
+                    setSubUntil(data.subscription_until);
+                } else {
+                    // Если записи нет (новый пользователь), создаем её прямо сейчас до оплаты
+                    await supabase.from('ttimer_settings').insert([{ user_id: uid, config: {} }]);
+                    setSubUntil(null);
+                }
+                
                 setLoading(false);
             };
 

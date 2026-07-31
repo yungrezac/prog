@@ -22,11 +22,27 @@ app.get('/da-callback', (req, res) => {
     </script></body></html>`);
 });
 
+// --- МЕНЕДЖЕР КОМНАТ ДЛЯ БАТТЛОВ ---
+const activeRooms = new Map(); // roomId -> { id: string, members: Map<userId, nickname> }
+
+function broadcastRoomState(roomId) {
+    const room = activeRooms.get(roomId);
+    if (!room) return;
+    const membersList = Array.from(room.members.entries()).map(([id, nickname]) => ({ id, nickname }));
+    room.members.forEach((_, memberId) => {
+        io.to(memberId).emit('room-state', { id: roomId, members: membersList });
+    });
+}
+
 class UserSession {
     constructor(userId, ioServer) {
         this.userId = userId;
         this.io = ioServer;
         
+        // Мультиплеер
+        this.mpRoomId = null;
+        this.nickname = 'Игрок';
+
         this.timerState = {
             timeLeft: 0, isRunning: false, isVictory: false, isBonusPhase: false, isRollingBonus: false,
             bonusTriggerUser: '', forceVictory: false,
@@ -81,7 +97,7 @@ class UserSession {
                         
                         this.emit('start-bonus-roll', { username: this.timerState.bonusTriggerUser || 'Зритель', amount: bonusTime });
 
-                        // --- ИСПРАВЛЕНИЕ: Предохранитель зависания бонусной рулетки ---
+                        // Предохранитель зависания бонусной рулетки
                         if (this.bonusFailsafe) clearTimeout(this.bonusFailsafe);
                         this.bonusFailsafe = setTimeout(() => {
                             if (this.timerState.isRollingBonus) {
@@ -91,7 +107,7 @@ class UserSession {
                                 this.timerState.isRunning = true;
                                 this.broadcastTime();
                             }
-                        }, 20000); // Снимет блокировку через 20 секунд, если виджет завис
+                        }, 20000); 
                         
                     } else {
                         this.timerState.timeLeft = 0; this.timerState.isRunning = false; this.timerState.isVictory = true;
@@ -172,19 +188,71 @@ class UserSession {
         const nextUser = this.rouletteQueue.shift();
         this.spinRoulette(nextUser);
 
-        // --- ИСПРАВЛЕНИЕ: Предохранитель зависания очереди рулетки ---
+        // Предохранитель зависания очереди рулетки
         if (this.rouletteFailsafe) clearTimeout(this.rouletteFailsafe);
         this.rouletteFailsafe = setTimeout(() => {
             if (this.isRouletteBusy) {
                 console.log(`[Failsafe] Авторазблокировка очереди рулетки для ${this.userId}. Виджет не ответил.`);
                 this.isRouletteBusy = false;
-                
-                // Если произошел таймаут, мы упустили начисление приза, 
-                // так как оно происходит только по сигналу apply-roulette-result от клиента.
-                // Но главное — мы разблокировали очередь, и следующий человек сможет крутить.
                 this.checkRouletteQueue();
             }
-        }, 20000); // Снимет блокировку через 20 секунд
+        }, 20000); 
+    }
+
+    // Обработка внешних атак/баффов из других комнат
+    receiveCrossRoomEffect(type, value, senderName, multiplierValue = 2) {
+        let addedTime = 0;
+        let alertType = 'mp_attack';
+        let alertText = '';
+
+        if (type === 'sub_time') {
+            let old = this.timerState.timeLeft;
+            let toSub = Math.abs(value);
+            if (old > 300) {
+                let nTime = old - toSub; 
+                if (nTime < 300) nTime = 300; 
+                this.timerState.timeLeft = nTime; 
+                addedTime = nTime - old; 
+            }
+            alertText = `АТАКА ОТ ${senderName.toUpperCase()}!`;
+        } else if (type === 'add_time') {
+            this.timerState.timeLeft += value;
+            addedTime = value;
+            alertText = `ПОМОЩЬ ОТ ${senderName.toUpperCase()}!`;
+            alertType = 'mp_buff';
+        } else if (type === 'divide_time') {
+            let old = this.timerState.timeLeft; 
+            let divisor = Math.max(1, multiplierValue);
+            if (old > 300) {
+                let nTime = Math.floor(old / divisor); 
+                if (nTime < 300) nTime = 300; 
+                this.timerState.timeLeft = nTime; 
+                addedTime = nTime - old; 
+            }
+            alertText = `РАЗДЕЛЕНИЕ ОТ ${senderName.toUpperCase()}!`;
+        } else if (type === 'multiply_time') {
+            let old = this.timerState.timeLeft;
+            this.timerState.timeLeft = Math.floor(old * multiplierValue);
+            addedTime = this.timerState.timeLeft - old;
+            alertText = `УМНОЖЕНИЕ ОТ ${senderName.toUpperCase()}!`;
+            alertType = 'mp_buff';
+        } else if (type === 'debuff') {
+            this.multiplierState = { isActive: true, type: 'debuff', value: multiplierValue, timeLeft: value || 60 };
+            alertText = `ДЕБАФФ ОТ ${senderName.toUpperCase()}!`;
+        } else if (type === 'multiplier') {
+            this.multiplierState = { isActive: true, type: 'buff', value: multiplierValue, timeLeft: value || 60 };
+            alertText = `БАФФ ОТ ${senderName.toUpperCase()}!`;
+            alertType = 'mp_buff';
+        }
+
+        // Оповещаем фронтенд таймера
+        this.emit('mp-action-alert', { 
+            sender: senderName, 
+            type: alertType, 
+            amount: addedTime, 
+            text: alertText 
+        });
+        this.broadcastTime();
     }
 
     processGenericDonation(id, username, amount, currency, platform) {
@@ -209,7 +277,6 @@ class UserSession {
 
     connectTikTok(username, apiKey) {
         if (!username || !apiKey) return;
-        
         const cleanUsername = username.replace(/[@\s]/g, '');
         
         this.disconnectTikTok();
@@ -599,17 +666,139 @@ io.on('connection', (socket) => {
         const session = getSession(userId);
         socket.emit('status-update', session.statusText);
         socket.emit('settings-updated', session.timerState.settings);
-        
         socket.emit('init-remote-data', { history: session.alertHistory });
-        
         session.broadcastTime();
+
+        // Если пользователь состоит в баттл-комнате, отправляем стейт
+        if (session.mpRoomId) broadcastRoomState(session.mpRoomId);
     });
 
     socket.on('update-settings', (config) => {
         if (!userId) return; const session = getSession(userId);
         session.timerState.settings = config;
         session.timerState.settings.originalRouletteSlots = [...(config.rouletteSlots || [])];
+        if (config.nickname) session.nickname = config.nickname; // Обновляем никнейм для комнат
         session.emit('settings-updated', config);
+    });
+
+    // --- ЛОГИКА МУЛЬТИПЛЕЕРА (ROOMS) ---
+    socket.on('create-mp-room', (nickname) => {
+        if (!userId) return; const session = getSession(userId);
+        session.nickname = nickname || 'Хост';
+        
+        // Покидаем старую, если была
+        if (session.mpRoomId && activeRooms.has(session.mpRoomId)) {
+            activeRooms.get(session.mpRoomId).members.delete(userId);
+            broadcastRoomState(session.mpRoomId);
+        }
+        
+        const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const membersMap = new Map();
+        membersMap.set(userId, session.nickname);
+        
+        activeRooms.set(roomId, { id: roomId, members: membersMap });
+        session.mpRoomId = roomId;
+        
+        broadcastRoomState(roomId);
+    });
+
+    socket.on('join-mp-room', (data) => {
+        if (!userId) return; const session = getSession(userId);
+        const { roomId, nickname } = data;
+        session.nickname = nickname || 'Игрок';
+        const room = activeRooms.get(roomId);
+        
+        if (room) {
+            if (session.mpRoomId && session.mpRoomId !== roomId) {
+                const oldRoom = activeRooms.get(session.mpRoomId);
+                if (oldRoom) { oldRoom.members.delete(userId); broadcastRoomState(session.mpRoomId); }
+            }
+            room.members.set(userId, session.nickname);
+            session.mpRoomId = roomId;
+            broadcastRoomState(roomId);
+        }
+    });
+
+    socket.on('leave-mp-room', () => {
+        if (!userId) return; const session = getSession(userId);
+        if (session.mpRoomId && activeRooms.has(session.mpRoomId)) {
+            const room = activeRooms.get(session.mpRoomId);
+            room.members.delete(userId);
+            broadcastRoomState(session.mpRoomId);
+            
+            if (room.members.size === 0) activeRooms.delete(session.mpRoomId);
+        }
+        session.mpRoomId = null;
+        socket.emit('room-state', { id: null, members: [] });
+    });
+
+    // --- ОБРАБОТКА РЕЗУЛЬТАТОВ РУЛЕТКИ (С УЧЕТОМ ТАРГЕТОВ) ---
+    socket.on('apply-roulette-result', (payload) => {
+        if (!userId) return; const session = getSession(userId);
+        const { winner, user } = payload;
+        
+        let targetType = winner.target || 'me';
+        if (!session.mpRoomId) targetType = 'me'; // Если не в комнате, всегда применяем к себе
+        
+        const room = session.mpRoomId ? activeRooms.get(session.mpRoomId) : null;
+        let targetsToApply = []; 
+
+        if (targetType === 'me') {
+            targetsToApply = [userId];
+        } else if (targetType === 'opponents' && room) {
+            targetsToApply = Array.from(room.members.keys()).filter(id => id !== userId);
+        } else if (targetType === 'all' && room) {
+            targetsToApply = Array.from(room.members.keys());
+        }
+
+        const myNickname = room ? room.members.get(userId) : 'Противник';
+
+        // Удаление одноразового слота (только у того, кто крутил рулетку)
+        if (winner.isEliminable) {
+            let updatedSlots = session.timerState.settings.rouletteSlots.filter(s => s.id !== winner.id);
+            if (updatedSlots.length === 0) updatedSlots = [...(session.timerState.settings.originalRouletteSlots || [])];
+            session.timerState.settings.rouletteSlots = updatedSlots; session.emit('settings-updated', session.timerState.settings);
+        }
+
+        // Применяем эффекты к целям
+        targetsToApply.forEach(targetId => {
+            const tSession = getSession(targetId);
+            if (!tSession) return;
+
+            if (targetId === userId) {
+                // ПРИМЕНЕНИЕ К СЕБЕ (Обычная логика)
+                let addedTime = 0, eventType = 'roulette', alertText = winner.label, isSpecial = false;
+
+                if (winner.type === 'set_time') { addedTime = winner.value - tSession.timerState.timeLeft; tSession.timerState.timeLeft = winner.value; }
+                else if (winner.type === 'reset_time') { addedTime = -tSession.timerState.timeLeft; tSession.timerState.timeLeft = 0; tSession.timerState.forceVictory = true; }
+                else if (winner.type === 'extra_spin') {
+                    alertText = `ЕЩЕ ПРОКРУТ (x${winner.value||1})`; isSpecial = true;
+                    for (let i = 0; i < (winner.value||1); i++) tSession.rouletteQueue.unshift({ username: user.username, avatar: user.avatar, triggerGift: { name: 'Доп. прокрут', icon: 'https://cdn-icons-png.flaticon.com/512/808/808271.png' } });
+                }
+                else if (winner.type === 'multiplier' || winner.type === 'debuff') { tSession.multiplierState = { isActive: true, type: winner.type === 'debuff' ? 'debuff' : 'buff', value: winner.multiplierValue || 2, timeLeft: winner.value || 60 }; }
+                else if (winner.type === 'multiply_time') { let old = tSession.timerState.timeLeft; tSession.timerState.timeLeft = Math.floor(old * (winner.multiplierValue||2)); addedTime = tSession.timerState.timeLeft - old; alertText = `Время x${winner.multiplierValue}`; }
+                else if (winner.type === 'divide_time') { 
+                    let old = tSession.timerState.timeLeft; 
+                    let divisor = Math.max(1, (winner.multiplierValue||2));
+                    if (old > 300) { let nTime = Math.floor(old / divisor); if (nTime < 300) nTime = 300; tSession.timerState.timeLeft = nTime; addedTime = nTime - old; } else { addedTime = 0; }
+                    alertText = `Время /${winner.multiplierValue}`; 
+                }
+                else if (winner.type === 'special') { isSpecial = true; alertText = winner.textValue || winner.label; }
+                else if (winner.type === 'add_time') { tSession.timerState.timeLeft += winner.value; addedTime = winner.value; }
+                else if (winner.type === 'sub_time') { 
+                    let old = tSession.timerState.timeLeft; let toSub = Math.abs(winner.value);
+                    if (old > 300) { let nTime = old - toSub; if (nTime < 300) nTime = 300; tSession.timerState.timeLeft = nTime; addedTime = nTime - old; } else { addedTime = 0; }
+                }
+                
+                tSession.broadcastAlert({ id: Date.now(), username: user.username, avatar: user.avatar, giftName: alertText, timeAdded: addedTime, type: eventType, isSpecial, targetTime: tSession.timerState.timeLeft });
+                tSession.broadcastTime();
+            } else {
+                // ПРИМЕНЕНИЕ К ДРУГИМ (Кросс-комнатная атака/помощь)
+                if (['sub_time', 'add_time', 'divide_time', 'multiply_time', 'debuff', 'multiplier'].includes(winner.type)) {
+                    tSession.receiveCrossRoomEffect(winner.type, winner.value, myNickname, winner.multiplierValue);
+                }
+            }
+        });
     });
 
     socket.on('start-timer', (config) => {
@@ -618,7 +807,6 @@ io.on('connection', (socket) => {
         session.timerState.timeLeft = config.initialTime * 60; session.timerState.isRunning = true; session.timerState.isVictory = false; session.timerState.isBonusPhase = false;
         session.multiplierState.isActive = false; 
         
-        // Очистка зависшей очереди и предохранителей при рестарте
         session.rouletteQueue = []; 
         session.isRouletteBusy = false;
         if (session.rouletteFailsafe) clearTimeout(session.rouletteFailsafe);
@@ -643,7 +831,6 @@ io.on('connection', (socket) => {
     });
     socket.on('manual-sub', (sec) => { 
         if (!userId) return; const s = getSession(userId); 
-        let old = s.timerState.timeLeft;
         s.timerState.timeLeft = Math.max(0, s.timerState.timeLeft - sec); 
         if(s.timerState.timeLeft === 0) { s.timerState.isVictory = true; s.timerState.isRunning = false; } 
         s.broadcastTime(); 
@@ -651,64 +838,10 @@ io.on('connection', (socket) => {
     
     socket.on('manual-trigger-roulette', () => { if (!userId) return; const s = getSession(userId); s.rouletteQueue.push({ username: 'Стример', avatar: 'https://cdn-icons-png.flaticon.com/512/2888/2888661.png', triggerGift: { name: 'Пульт', icon: '' } }); s.checkRouletteQueue(); });
 
-    socket.on('apply-roulette-result', (payload) => {
-        if (!userId) return; const session = getSession(userId);
-        const { winner, user } = payload;
-        let addedTime = 0, eventType = 'roulette', alertText = winner.label, isSpecial = false;
-
-        if (winner.isEliminable) {
-            let updatedSlots = session.timerState.settings.rouletteSlots.filter(s => s.id !== winner.id);
-            if (updatedSlots.length === 0) updatedSlots = [...(session.timerState.settings.originalRouletteSlots || [])];
-            session.timerState.settings.rouletteSlots = updatedSlots; session.emit('settings-updated', session.timerState.settings);
-        }
-
-        if (winner.type === 'set_time') { addedTime = winner.value - session.timerState.timeLeft; session.timerState.timeLeft = winner.value; }
-        else if (winner.type === 'reset_time') { addedTime = -session.timerState.timeLeft; session.timerState.timeLeft = 0; session.timerState.forceVictory = true; }
-        else if (winner.type === 'extra_spin') {
-            alertText = `ЕЩЕ ПРОКРУТ (x${winner.value||1})`; isSpecial = true;
-            for (let i = 0; i < (winner.value||1); i++) session.rouletteQueue.unshift({ username: user.username, avatar: user.avatar, triggerGift: { name: 'Доп. прокрут', icon: 'https://cdn-icons-png.flaticon.com/512/808/808271.png' } });
-        }
-        else if (winner.type === 'multiplier' || winner.type === 'debuff') { session.multiplierState = { isActive: true, type: winner.type === 'debuff' ? 'debuff' : 'buff', value: winner.multiplierValue || 2, timeLeft: winner.value || 60 }; }
-        else if (winner.type === 'multiply_time') { let old = session.timerState.timeLeft; session.timerState.timeLeft = Math.floor(old * (winner.multiplierValue||2)); addedTime = session.timerState.timeLeft - old; alertText = `Время x${winner.multiplierValue}`; }
-        else if (winner.type === 'divide_time') { 
-            let old = session.timerState.timeLeft; 
-            let divisor = Math.max(1, (winner.multiplierValue||2));
-            if (old > 300) {
-                let nTime = Math.floor(old / divisor); 
-                if (nTime < 300) nTime = 300; 
-                session.timerState.timeLeft = nTime; 
-                addedTime = nTime - old; 
-            } else {
-                addedTime = 0;
-            }
-            alertText = `Время /${winner.multiplierValue}`; 
-        }
-        else if (winner.type === 'special') { isSpecial = true; alertText = winner.textValue || winner.label; }
-        else if (winner.type === 'add_time') { session.timerState.timeLeft += winner.value; addedTime = winner.value; }
-        else if (winner.type === 'sub_time') { 
-            let old = session.timerState.timeLeft; 
-            let toSub = Math.abs(winner.value);
-            if (old > 300) {
-                let nTime = old - toSub; 
-                if (nTime < 300) nTime = 300; 
-                session.timerState.timeLeft = nTime; 
-                addedTime = nTime - old; 
-            } else {
-                addedTime = 0;
-            }
-        }
-        
-        session.broadcastAlert({ id: Date.now(), username: user.username, avatar: user.avatar, giftName: alertText, timeAdded: addedTime, type: eventType, isSpecial, targetTime: session.timerState.timeLeft });
-        session.broadcastTime();
-    });
-
     socket.on('roulette-animation-finished', () => { 
         if(!userId) return; 
         const s = getSession(userId); 
-        
-        // --- ИСПРАВЛЕНИЕ: Отключаем предохранитель, так как ответ получен вовремя ---
         if (s.rouletteFailsafe) clearTimeout(s.rouletteFailsafe);
-        
         s.isRouletteBusy = false; 
         setTimeout(()=>s.checkRouletteQueue(), 1000); 
     });
@@ -716,10 +849,7 @@ io.on('connection', (socket) => {
     socket.on('bonus-roll-finished', (time) => { 
         if(!userId) return; 
         const s = getSession(userId); 
-        
-        // --- ИСПРАВЛЕНИЕ: Отключаем предохранитель бонусного броска ---
         if (s.bonusFailsafe) clearTimeout(s.bonusFailsafe);
-        
         s.timerState.timeLeft = time; 
         s.timerState.isRollingBonus = false; 
         s.timerState.isRunning = true; 

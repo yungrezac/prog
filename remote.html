@@ -70,12 +70,29 @@
                         return newHistory.slice(0, 50); // Храним только 50 для производительности
                     });
                 });
+
+                // Обработка оповещений из мультиплеера
+                socket.on('mp-action-alert', data => {
+                    setHistory(prev => {
+                        const mpEvent = {
+                            id: Date.now() + Math.random(),
+                            username: data.sender,
+                            avatar: data.type === 'mp_attack' ? 'https://cdn-icons-png.flaticon.com/512/2909/2909414.png' : 'https://cdn-icons-png.flaticon.com/512/8212/8212616.png',
+                            giftName: data.text,
+                            timeAdded: data.amount,
+                            type: data.type
+                        };
+                        const newHistory = [mpEvent, ...prev];
+                        return newHistory.slice(0, 50);
+                    });
+                });
                 
                 return () => { 
                     socket.off('timer-tick'); 
                     socket.off('new-alert'); 
                     socket.off('init-remote-data');
                     socket.off('status-update');
+                    socket.off('mp-action-alert');
                 }; 
             }, []);
 
@@ -165,16 +182,27 @@
                             {history.length === 0 ? (
                                 <div className="text-center text-slate-500 mt-10 text-sm font-bold">Ожидание событий...</div>
                             ) : (
-                                history.map((h, i) => (
-                                    <div key={i} className="flex items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-800 text-white hover:border-slate-600 transition">
-                                        <img src={h.avatar || 'https://via.placeholder.com/32'} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
-                                        <div className="flex flex-col flex-1 overflow-hidden">
-                                            <span className="text-sm font-bold truncate text-slate-200">{h.username}</span>
-                                            <span className="text-xs text-slate-400 truncate">{h.giftName || h.type} {h.amount > 1 ? `(x${h.amount})` : ''}</span>
+                                history.map((h, i) => {
+                                    const isMpAttack = h.type === 'mp_attack';
+                                    const isMpBuff = h.type === 'mp_buff';
+                                    
+                                    return (
+                                        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition ${isMpAttack ? 'bg-rose-950/40 border-rose-800 hover:border-rose-600' : isMpBuff ? 'bg-emerald-950/40 border-emerald-800 hover:border-emerald-600' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`}>
+                                            <img src={h.avatar || 'https://via.placeholder.com/32'} className={`w-10 h-10 rounded-full object-cover border ${isMpAttack ? 'border-rose-500' : isMpBuff ? 'border-emerald-500' : 'border-slate-700'}`} />
+                                            <div className="flex flex-col flex-1 overflow-hidden">
+                                                <span className={`text-sm font-bold truncate ${isMpAttack ? 'text-rose-400' : isMpBuff ? 'text-emerald-400' : 'text-slate-200'}`}>
+                                                    {h.username} {isMpAttack && <i className="fa-solid fa-swords text-rose-500 ml-1"></i>} {isMpBuff && <i className="fa-solid fa-hand-holding-heart text-emerald-500 ml-1"></i>}
+                                                </span>
+                                                <span className="text-xs text-slate-400 truncate">{h.giftName || h.type} {h.amount > 1 ? `(x${h.amount})` : ''}</span>
+                                            </div>
+                                            {h.timeAdded !== 0 && (
+                                                <span className={`text-base font-black whitespace-nowrap ${h.timeAdded > 0 ? 'text-emerald-400' : h.timeAdded < 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+                                                    {h.timeAdded > 0 ? '+' : ''}{h.timeAdded} с
+                                                </span>
+                                            )}
                                         </div>
-                                        <span className={`text-base font-black whitespace-nowrap ${h.timeAdded > 0 ? 'text-emerald-400' : h.timeAdded < 0 ? 'text-rose-400' : 'text-slate-300'}`}>{h.timeAdded > 0 ? '+' : ''}{h.timeAdded} {h.timeAdded !== 0 ? 'с' : ''}</span>
-                                    </div>
-                                ))
+                                    )
+                                })
                             )}
                         </div>
                     </div>

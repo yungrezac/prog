@@ -917,20 +917,35 @@ io.on('connection', (socket) => {
                 const userData = await userRes.json();
                 
                 let currentExpire = new Date();
-                if (userData && userData.length > 0 && userData[0].subscription_until) {
-                    const dbDate = new Date(userData[0].subscription_until);
-                    if (dbDate > currentExpire) {
-                        currentExpire = dbDate;
+                let isNewUser = true;
+                
+                if (userData && userData.length > 0) {
+                    isNewUser = false; // Запись уже существует
+                    if (userData[0].subscription_until) {
+                        const dbDate = new Date(userData[0].subscription_until);
+                        if (dbDate > currentExpire) {
+                            currentExpire = dbDate;
+                        }
                     }
                 }
                 
                 currentExpire.setDate(currentExpire.getDate() + 30);
                 
-                await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings?user_id=eq.${uid}`, {
-                    method: 'PATCH',
-                    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ subscription_until: currentExpire.toISOString() })
-                });
+                if (isNewUser) {
+                    // Если записи нет (новый юзер), создаем её с помощью POST
+                    await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings`, {
+                        method: 'POST',
+                        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: uid, subscription_until: currentExpire.toISOString(), config: {} })
+                    });
+                } else {
+                    // Если запись есть, обновляем только время через PATCH
+                    await fetch(`${SUPABASE_URL}/rest/v1/ttimer_settings?user_id=eq.${uid}`, {
+                        method: 'PATCH',
+                        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ subscription_until: currentExpire.toISOString() })
+                    });
+                }
 
                 await fetch(`${SUPABASE_URL}/rest/v1/crypto_payments?user_id=eq.${uid}&expected_amount=eq.${amount}`, {
                     method: 'PATCH',

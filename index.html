@@ -5,21 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TikTimer PRO</title>
     
-    <!-- Скрипты React и Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Беканд скрипты пользователя -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Заглушка для io, чтобы UI не падал без сервера при предпросмотре -->
     <script>window.io = window.io || function() { return { on: ()=>{}, emit: ()=>{}, off: ()=>{} }; };</script>
     <script src="/socket.io/socket.io.js"></script> 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- БИБЛИОТЕКИ АНИМАЦИИ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vivus@0.4.6/dist/vivus.min.js"></script>
@@ -41,55 +37,49 @@
     </script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Bebas+Neue&family=Montserrat:wght@400;800&family=Comic+Neue:wght@700&family=Roboto:wght@700;900&family=Open+Sans:wght@700;800&family=Oswald:wght@700&family=Raleway:wght@800;900&family=Nunito:wght@800;900&family=Playfair+Display:wght@700;900&family=Caveat:wght@700&family=Rubik:wght@700;900&family=Pacifico&family=Yanone+Kaffeesatz:wght@700&family=Comfortaa:wght@700&family=Ruslan+Display&family=Kelly+Slab&family=Roboto+Slab:wght@700;900&family=Lobster&family=Alice&family=PT+Sans:wght@700&display=swap');
         
         body { 
             background-color: #0b0f19; 
             color: #f8fafc; 
             overflow: hidden; 
-            font-family: 'Inter', sans-serif;
+            transition: font-family 0.3s ease;
         }
         
-        /* Стилизация скроллбара под новый дизайн */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: rgba(17, 24, 39, 0.5); }
-        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.4); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 
         .glass-panel {
-            background: rgba(17, 24, 39, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.05);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
         .input-glass {
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.1);
             transition: all 0.3s ease;
         }
         .input-glass:focus {
             border-color: #6366f1;
             box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.5);
         }
-
-        .tab-active { 
-            background: linear-gradient(90deg, rgba(99,102,241,0.15) 0%, transparent 100%); 
-            border-left: 3px solid #818cf8; 
-            color: white; 
-        }
-        .tab-inactive { color: #6b7280; border-left: 3px solid transparent; }
-        .tab-inactive:hover { color: #e5e7eb; background: rgba(255,255,255,0.02); }
 
         #anime-background {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; pointer-events: none;
         }
         .anime-particle {
             position: absolute; border-radius: 50%;
-            background: radial-gradient(circle, rgba(99,102,241,0.4) 0%, rgba(99,102,241,0) 70%);
+            background: radial-gradient(circle, rgba(99,102,241,0.3) 0%, rgba(99,102,241,0) 70%);
         }
+
+        .tab-active-bg { background: linear-gradient(90deg, rgba(99,102,241,0.15) 0%, transparent 100%); }
     </style>
 </head>
 <body>
@@ -98,7 +88,6 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useLayoutEffect } = React;
-        // Безопасная инициализация для демо
         const socket = (typeof io !== 'undefined') ? io() : { on: ()=>{}, emit: ()=>{}, off: ()=>{} };
 
         const supabaseUrl = 'https://lqjagftaeejdufwwvjwd.supabase.co';
@@ -114,14 +103,11 @@
             } catch (err) { }
         });
 
-        // Вспомогательный хук для GSAP анимаций модалок
+        // Вспомогательный хук для GSAP
         function useGsapModal(isOpen, modalRef) {
             useEffect(() => {
                 if (isOpen && modalRef.current) {
-                    gsap.fromTo(modalRef.current, 
-                        { scale: 0.9, opacity: 0, y: 20 }, 
-                        { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
-                    );
+                    gsap.fromTo(modalRef.current, { scale: 0.9, opacity: 0, y: 30 }, { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.2)" });
                 }
             }, [isOpen]);
         }
@@ -153,20 +139,16 @@
 
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 bg-dark-900/80 flex items-center justify-center p-6 z-50 backdrop-blur-md">
-                    <div ref={modalRef} className="glass-panel rounded-3xl p-6 w-full max-w-4xl h-[85vh] flex flex-col border border-white/10">
+                <div className="fixed inset-0 bg-dark-900/80 flex items-center justify-center p-6 z-[100] backdrop-blur-md" style={{ fontFamily: 'Inter' }}>
+                    <div ref={modalRef} className="glass-panel rounded-3xl p-6 w-full max-w-4xl h-[85vh] flex flex-col">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400">
-                                Библиотека подарков
-                            </h2>
-                            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all">
-                                <i className="fa-solid fa-xmark"></i>
-                            </button>
+                            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400">Библиотека подарков</h2>
+                            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"><i className="fa-solid fa-xmark"></i></button>
                         </div>
                         <input type="text" placeholder="Поиск подарка..." value={search} onChange={e => setSearch(e.target.value)} className="w-full input-glass rounded-xl px-4 py-4 mb-6 text-white outline-none" />
                         
                         <div className="flex-1 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 pr-2 custom-scrollbar">
-                            {isLoading ? <div className="col-span-full text-center text-brand-400 mt-10 flex flex-col items-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl mb-2"></i>Загрузка библиотеки...</div> : 
+                            {isLoading ? <div className="col-span-full flex flex-col items-center mt-10 text-brand-400"><i className="fa-solid fa-circle-notch fa-spin text-3xl mb-2"></i>Загрузка...</div> : 
                             gifts.filter(g => (g.name || '').toLowerCase().includes(search.toLowerCase())).map((g, idx) => (
                                 <div key={idx} onClick={() => { onSelect(g); onClose(); setSearch(''); }} className="cursor-pointer bg-white/5 p-4 rounded-2xl hover:bg-brand-600/20 transition-all duration-300 flex flex-col items-center group border border-transparent hover:border-brand-500/50 hover:-translate-y-1">
                                     <img src={g.icon} alt={g.name} className="w-16 h-16 object-contain mb-3 group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
@@ -190,65 +172,31 @@
             const formRef = useRef(null);
             const logoRef = useRef(null);
 
-            // GSAP и Vivus анимации при загрузке
             useEffect(() => {
-                // Инициализация фоновых частиц Anime.js
                 const container = document.getElementById('anime-background');
                 container.innerHTML = '';
                 for (let i = 0; i < 20; i++) {
                     const div = document.createElement('div');
                     div.classList.add('anime-particle');
                     const size = Math.random() * 200 + 50;
-                    div.style.width = `${size}px`;
-                    div.style.height = `${size}px`;
+                    div.style.width = `${size}px`; div.style.height = `${size}px`;
                     container.appendChild(div);
                 }
+                anime({ targets: '.anime-particle', translateX: () => anime.random(-window.innerWidth/2, window.innerWidth/2), translateY: () => anime.random(-window.innerHeight/2, window.innerHeight/2), scale: () => anime.random(0.5, 2), opacity: () => anime.random(0.1, 0.4), duration: () => anime.random(3000, 8000), easing: 'easeInOutQuad', direction: 'alternate', loop: true });
 
-                anime({
-                    targets: '.anime-particle',
-                    translateX: () => anime.random(-window.innerWidth/2, window.innerWidth/2),
-                    translateY: () => anime.random(-window.innerHeight/2, window.innerHeight/2),
-                    scale: () => anime.random(0.5, 2),
-                    opacity: () => anime.random(0.1, 0.4),
-                    duration: () => anime.random(3000, 8000),
-                    easing: 'easeInOutQuad',
-                    direction: 'alternate',
-                    loop: true
-                });
-
-                // Vivus отрисовка SVG логотипа
-                new Vivus(logoRef.current, { 
-                    duration: 100, 
-                    type: 'oneByOne', 
-                    animTimingFunction: Vivus.EASE_OUT 
-                }, () => {
-                    // После отрисовки заливаем градиентом (CSS handle)
+                new Vivus(logoRef.current, { duration: 100, type: 'oneByOne', animTimingFunction: Vivus.EASE_OUT }, () => {
                     logoRef.current.classList.add('logo-filled');
                 });
 
-                // GSAP Каскадное появление формы
-                gsap.fromTo(formRef.current.children, 
-                    { opacity: 0, y: 30 },
-                    { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: "power3.out", delay: 0.5 }
-                );
-
-                return () => { container.innerHTML = ''; }; // cleanup
+                gsap.fromTo(formRef.current.children, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: "power3.out", delay: 0.5 });
+                return () => { container.innerHTML = ''; }; 
             }, []);
 
-            // Анимация смены режима (Вход/Регистрация)
-            useEffect(() => {
-                gsap.fromTo(".auth-input-group", 
-                    { opacity: 0, x: -20 }, 
-                    { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }
-                );
-            }, [isLogin]);
+            useEffect(() => { gsap.fromTo(".auth-input-group", { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }); }, [isLogin]);
 
             const handleSubmit = async (e) => {
-                e.preventDefault(); 
-                setError('');
-                if (!supabase) return; // Защита
-                
-                // Добавим микроанимацию на кнопку при клике
+                e.preventDefault(); setError('');
+                if (!supabase) return; 
                 anime({ targets: '.submit-btn', scale: [1, 0.95, 1], duration: 300, easing: 'easeInOutQuad' });
 
                 if (isLogin) {
@@ -267,49 +215,35 @@
             };
 
             return (
-                <div className="h-screen w-screen flex items-center justify-center bg-transparent z-10 relative">
-                    <div className="glass-panel p-10 rounded-[2.5rem] w-full max-w-md relative overflow-hidden">
-                        
+                <div className="h-screen w-screen flex items-center justify-center bg-transparent z-10 relative" style={{ fontFamily: 'Inter' }}>
+                    <div className="glass-panel p-10 rounded-[2.5rem] w-full max-w-md relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
                         <div className="flex justify-center mb-6">
-                            {/* SVG Логотип для анимации Vivus */}
                             <svg ref={logoRef} viewBox="0 0 100 100" className="w-24 h-24 stroke-brand-400 stroke-[3px] fill-transparent transition-all duration-1000 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">
                                 <style>{`.logo-filled { fill: url(#grad1); stroke-width: 0; }`}</style>
-                                <defs>
-                                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" style={{stopColor:"#818cf8", stopOpacity:1}} />
-                                        <stop offset="100%" style={{stopColor:"#c084fc", stopOpacity:1}} />
-                                    </linearGradient>
-                                </defs>
+                                <defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style={{stopColor:"#818cf8", stopOpacity:1}} /><stop offset="100%" style={{stopColor:"#c084fc", stopOpacity:1}} /></linearGradient></defs>
                                 <path d="M50 5 L80 40 L55 40 L60 95 L20 55 L45 55 Z" strokeLinejoin="round" strokeLinecap="round" />
                             </svg>
                         </div>
-                        
                         <h1 className="text-4xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400 mb-8 tracking-tight">TikTimer</h1>
-                        
                         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-5">
-                            {error && <div className="bg-rose-500/10 border border-rose-500/50 text-rose-400 p-4 rounded-2xl text-sm text-center backdrop-blur-sm">{error}</div>}
-                            
+                            {error && <div className="bg-rose-500/10 border border-rose-500/50 text-rose-400 p-4 rounded-2xl text-sm text-center">{error}</div>}
                             <div className="auth-input-group relative">
                                 <i className="fa-solid fa-envelope absolute left-4 top-4 text-slate-500"></i>
-                                <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white placeholder-slate-500" required />
+                                <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white" required />
                             </div>
-                            
                             <div className="auth-input-group relative">
                                 <i className="fa-solid fa-lock absolute left-4 top-4 text-slate-500"></i>
-                                <input type="password" placeholder="Пароль" value={password} onChange={e => setPassword(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white placeholder-slate-500" required />
+                                <input type="password" placeholder="Пароль" value={password} onChange={e => setPassword(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white" required />
                             </div>
-                            
                             {!isLogin && (
                                 <div className="auth-input-group relative">
                                     <i className="fa-solid fa-shield-check absolute left-4 top-4 text-slate-500"></i>
-                                    <input type="password" placeholder="Подтвердите пароль" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white placeholder-slate-500" required />
+                                    <input type="password" placeholder="Подтвердите пароль" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full input-glass rounded-2xl pl-12 pr-4 py-4 outline-none text-white" required />
                                 </div>
                             )}
-                            
-                            <button type="submit" className="submit-btn bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 font-bold py-4 rounded-2xl mt-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)] hover:shadow-[0_0_30px_rgba(99,102,241,0.6)]">
+                            <button type="submit" className="submit-btn bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 font-bold py-4 rounded-2xl mt-2 transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)]">
                                 {isLogin ? 'Войти в систему' : 'Создать аккаунт'}
                             </button>
-                            
                             <p className="text-center text-slate-400 mt-2 text-sm cursor-pointer hover:text-white transition-colors" onClick={() => { setIsLogin(!isLogin); setError(''); setConfirmPassword(''); }}>
                                 {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
                             </p>
@@ -341,46 +275,30 @@
                 const onNotFound = () => { setChecking(false); setError('Платеж не найден. Убедитесь, что перевели точную сумму.'); };
                 const onError = (data) => { setChecking(false); setCreating(false); setError(data.message); };
 
-                socket.on('payment-created', onCreated);
-                socket.on('payment-success', onSuccess);
-                socket.on('payment-not-found', onNotFound);
-                socket.on('payment-error', onError);
-                
-                return () => { 
-                    socket.off('payment-created', onCreated); 
-                    socket.off('payment-success', onSuccess); 
-                    socket.off('payment-not-found', onNotFound); 
-                    socket.off('payment-error', onError); 
-                };
+                socket.on('payment-created', onCreated); socket.on('payment-success', onSuccess); socket.on('payment-not-found', onNotFound); socket.on('payment-error', onError);
+                return () => { socket.off('payment-created', onCreated); socket.off('payment-success', onSuccess); socket.off('payment-not-found', onNotFound); socket.off('payment-error', onError); };
             }, [onVerified]);
 
             return (
                 <div className="flex flex-col items-center text-center w-full max-w-sm mx-auto">
-                    <div className="w-20 h-20 bg-brand-500/10 flex items-center justify-center rounded-[2rem] mb-6 border border-brand-500/20 shadow-[0_0_30px_rgba(99,102,241,0.15)] relative">
-                        <i className="fa-brands fa-telegram text-4xl text-brand-400 absolute"></i>
-                    </div>
-                    <h3 className="text-2xl font-black mb-2 text-white tracking-tight">Оплата Подписки</h3>
+                    <div className="w-20 h-20 bg-brand-500/10 flex items-center justify-center rounded-[2rem] mb-6 border border-brand-500/20 shadow-[0_0_30px_rgba(99,102,241,0.15)] relative"><i className="fa-brands fa-telegram text-4xl text-brand-400 absolute"></i></div>
+                    <h3 className="text-2xl font-black mb-2 text-white">Оплата Подписки</h3>
                     <p className="text-slate-400 mb-8 text-sm">Доступ выдается на 30 дней. При продлении время суммируется.</p>
                     
                     {!amount ? (
-                        <button onClick={() => { setCreating(true); setError(''); socket.emit('create-payment', user.id); }} disabled={creating} className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(99,102,241,0.3)]">
+                        <button onClick={() => { setCreating(true); setError(''); socket.emit('create-payment', user.id); }} disabled={creating} className="w-full bg-gradient-to-r from-brand-600 to-brand-500 py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(99,102,241,0.3)]">
                             {creating ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Подготовка...</> : <><i className="fa-brands fa-telegram"></i> Оплатить 50 USDT (TON)</>}
                         </button>
                     ) : (
-                        <div className="w-full flex flex-col items-center animate-fade-in-up">
+                        <div className="w-full flex flex-col items-center">
                             <div className="bg-white/10 p-4 rounded-3xl mb-6 shadow-xl border border-white/10 backdrop-blur-md" ref={qrRef}></div>
                             <div className="input-glass w-full p-5 rounded-2xl mb-6 flex flex-col gap-1 text-left relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
                                 <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">К оплате (Строго):</span>
                                 <span className="text-brand-300 font-mono text-3xl font-black">{amount} <span className="text-lg">USDT</span></span>
                             </div>
-                            
-                            <a href={`ton://transfer/${wallet}?amount=${amount * 1000000000}&text=TikTimer`} className="w-full bg-[#3390ec] hover:bg-[#2a7bcf] text-white py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 mb-4 shadow-[0_10px_20px_rgba(51,144,236,0.3)]">
-                                <i className="fa-solid fa-wallet text-xl"></i> Открыть Tonkeeper
-                            </a>
-                            <button onClick={() => { setChecking(true); setError(''); socket.emit('verify-payment', { uid: user.id, amount }); }} disabled={checking} className="w-full bg-white/5 hover:bg-white/10 text-emerald-400 py-4 rounded-2xl font-bold transition-all border border-white/10">
-                                {checking ? <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Проверка...</> : 'Я оплатил, проверить'}
-                            </button>
+                            <a href={`ton://transfer/${wallet}?amount=${amount * 1000000000}&text=TikTimer`} className="w-full bg-[#3390ec] hover:bg-[#2a7bcf] text-white py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 mb-4 shadow-[0_10px_20px_rgba(51,144,236,0.3)]"><i className="fa-solid fa-wallet text-xl"></i> Открыть Tonkeeper</a>
+                            <button onClick={() => { setChecking(true); setError(''); socket.emit('verify-payment', { uid: user.id, amount }); }} disabled={checking} className="w-full bg-white/5 hover:bg-white/10 text-emerald-400 py-4 rounded-2xl font-bold transition-all border border-white/10">{checking ? <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i> Проверка...</> : 'Я оплатил, проверить'}</button>
                         </div>
                     )}
                     {error && <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-400 text-sm font-bold w-full backdrop-blur-sm">{error}</div>}
@@ -390,37 +308,22 @@
 
         function SubscriptionScreen({ user, onLogout, onVerified }) {
             const screenRef = useRef(null);
-
-            useEffect(() => {
-                gsap.fromTo(screenRef.current, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" });
-            }, []);
-
+            useEffect(() => { gsap.fromTo(screenRef.current, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" }); }, []);
             return (
-                <div className="min-h-screen w-screen flex items-center justify-center p-4 sm:p-8 relative z-10">
+                <div className="min-h-screen w-screen flex items-center justify-center p-4 sm:p-8 relative z-10" style={{ fontFamily: 'Inter' }}>
                     <div ref={screenRef} className="glass-panel rounded-[2.5rem] flex flex-col md:flex-row overflow-hidden w-full max-w-5xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10">
                         <div className="w-full md:w-1/2 bg-gradient-to-br from-brand-900/40 to-dark-900/80 p-12 flex flex-col justify-between relative overflow-hidden">
-                            {/* Декоративные элементы */}
                             <div className="absolute top-[-20%] left-[-20%] w-96 h-96 bg-brand-500/20 rounded-full blur-[100px] pointer-events-none"></div>
                             <div className="absolute bottom-[-20%] right-[-20%] w-96 h-96 bg-purple-500/20 rounded-full blur-[100px] pointer-events-none"></div>
-                            
                             <div className="relative z-10">
                                 <div className="flex items-center gap-4 mb-10">
-                                    <div className="w-14 h-14 bg-brand-500/20 rounded-2xl flex items-center justify-center border border-brand-500/30 backdrop-blur-md">
-                                        <i className="fa-solid fa-bolt text-brand-400 text-2xl"></i>
-                                    </div>
+                                    <div className="w-14 h-14 bg-brand-500/20 rounded-2xl flex items-center justify-center border border-brand-500/30 backdrop-blur-md"><i className="fa-solid fa-bolt text-brand-400 text-2xl"></i></div>
                                     <h2 className="text-2xl font-black tracking-widest text-white">TikTimer</h2>
                                 </div>
-                                <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-8">
-                                    Открой всю мощь с <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400 drop-shadow-lg">PRO версией</span>
-                                </h1>
+                                <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-8">Открой всю мощь с <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-purple-400 drop-shadow-lg">PRO версией</span></h1>
                                 <ul className="space-y-5 mb-8">
                                     {['Неограниченное время сессий', 'Интерактивная рулетка призов', 'Собственные триггеры событий', 'Поддержка DonationAlerts'].map((text, i) => (
-                                        <li key={i} className="flex items-center gap-4 text-slate-300 font-medium text-lg">
-                                            <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                                <i className="fa-solid fa-check text-emerald-400 text-sm"></i>
-                                            </div>
-                                            {text}
-                                        </li>
+                                        <li key={i} className="flex items-center gap-4 text-slate-300 font-medium text-lg"><div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20"><i className="fa-solid fa-check text-emerald-400 text-sm"></i></div>{text}</li>
                                     ))}
                                 </ul>
                             </div>
@@ -429,7 +332,6 @@
                                 <button onClick={onLogout} className="text-rose-400 hover:text-rose-300 font-bold transition">Выйти <i className="fa-solid fa-arrow-right-from-bracket ml-1"></i></button>
                             </div>
                         </div>
-
                         <div className="w-full md:w-1/2 p-12 bg-dark-900/50 flex flex-col items-center justify-center border-l border-white/5 backdrop-blur-xl relative">
                             <PaymentWidget user={user || {id: 1}} onVerified={onVerified} />
                         </div>
@@ -447,27 +349,9 @@
             
             const contentRef = useRef(null);
 
-            // GSAP анимация смены вкладок
             useLayoutEffect(() => {
-                if (contentRef.current) {
-                    gsap.fromTo(contentRef.current.children, 
-                        { opacity: 0, x: 20 }, 
-                        { opacity: 1, x: 0, duration: 0.4, stagger: 0.05, ease: "power2.out" }
-                    );
-                }
+                if (contentRef.current) { gsap.fromTo(contentRef.current.children, { opacity: 0, x: 20 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.05, ease: "power2.out" }); }
             }, [activeTab]);
-
-            // Анимация ховера на кнопках боковой панели через Anime.js
-            const handleTabEnter = (e) => {
-                if (!e.currentTarget.classList.contains('tab-active')) {
-                    anime({ targets: e.currentTarget, translateX: 5, duration: 200, easing: 'easeOutSine' });
-                }
-            };
-            const handleTabLeave = (e) => {
-                if (!e.currentTarget.classList.contains('tab-active')) {
-                    anime({ targets: e.currentTarget, translateX: 0, duration: 200, easing: 'easeOutSine' });
-                }
-            };
 
             const daysLeft = subUntil ? Math.max(0, Math.ceil((new Date(subUntil) - new Date()) / (1000 * 60 * 60 * 24))) : 30; // 30 for demo
 
@@ -490,6 +374,7 @@
 
             const formatPayload = (data) => ({
                 ...data,
+                giftPenaltyIds: data.giftPenalty?.ids || [], giftSetTimeIds: data.giftSetTime?.ids || [], giftResetIds: data.giftReset?.ids || [], giftRouletteIds: data.giftRoulette?.ids || [], giftMultiplierIds: data.giftMultiplier?.ids || [], giftDebuffIds: data.giftDebuff?.ids || [],
                 customTriggers: data.customGifts.filter(cg => cg.gift).map(cg => ({ ids: cg.gift.ids || [], type: cg.type, value: cg.value, threshold: cg.threshold || 0, isEnabled: cg.isEnabled }))
             });
 
@@ -507,6 +392,7 @@
 
                 socket.on('status-update', s => setStatus(s));
                 socket.on('timer-tick', s => setIsRunning(s.isRunning));
+                window.addEventListener('message', (e) => { if (e.data && e.data.type === 'da_auth') { const hash = new URLSearchParams(e.data.hash); const token = hash.get('access_token'); if (token) socket.emit('connect-da-token', token); } });
                 return () => { socket.off('status-update'); socket.off('timer-tick'); };
             }, [user]);
 
@@ -514,130 +400,185 @@
                 if(supabase) await supabase.from('ttimer_settings').upsert({ user_id: user.id, config });
                 setSavedConfig(config); 
                 socket.emit('update-settings', formatPayload(config)); 
-                
-                // Эффект успешного сохранения
-                gsap.to("#save-bar", { scale: 1.1, backgroundColor: 'rgba(16, 185, 129, 0.9)', duration: 0.2, yoyo: true, repeat: 1 });
             };
             const handleCancel = () => setConfig(savedConfig);
             const setCfgStyle = (key, val) => setConfig(p => ({...p, styles: {...p.styles, [key]: val}}));
 
+            const openRemoteWindow = () => {
+                const width = 1100, height = 750;
+                const left = (window.screen.width / 2) - (width / 2), top = (window.screen.height / 2) - (height / 2);
+                window.open(`${window.location.origin}/remote.html?uid=${user?.id}`, 'TikTimerRemote', `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,status=no`);
+            };
+
+            // Компонент вкладки с логикой появления текста при разворачивании панели
             const TabBtn = ({ id, icon, text }) => ( 
                 <button 
-                    onMouseEnter={handleTabEnter} onMouseLeave={handleTabLeave}
                     onClick={() => { 
-                        if(hasChanges) { 
-                            anime({ targets: '#save-bar', translateX: [0, -10, 10, -10, 10, 0], duration: 400, easing: 'easeInOutQuad' });
-                            return;
-                        } 
+                        if(hasChanges) { anime({ targets: '#save-bar', scale: [1, 1.05, 1], rotate: [0, 2, -2, 0], duration: 400 }); return; } 
                         setActiveTab(id); 
                     }} 
-                    className={`w-full flex items-center gap-4 px-8 py-4 font-semibold transition-colors duration-300 ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}
+                    className={`w-full flex items-center gap-4 px-6 py-4 transition-all duration-300 relative group/btn ${activeTab === id ? 'tab-active-bg' : ''}`}
                 >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${activeTab === id ? 'bg-brand-500/20 text-brand-400' : 'bg-white/5 text-slate-400'}`}>
-                        <i className={icon + " text-sm"}></i>
+                    {/* Линия активной вкладки */}
+                    {activeTab === id && <div className="absolute left-0 top-0 h-full w-1 bg-brand-400 shadow-[0_0_15px_rgba(129,140,248,1)]"></div>}
+                    
+                    {/* Иконка */}
+                    <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-all duration-300 ${activeTab === id ? 'bg-brand-500/20 text-brand-400 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/5 text-slate-400 group-hover/btn:bg-white/10 group-hover/btn:text-white'}`}>
+                        <i className={icon + " text-lg"}></i>
                     </div>
-                    {text}
+                    
+                    {/* Текст (виден только при наведении на саму панель (group-hover/sidebar)) */}
+                    <span className="whitespace-nowrap font-semibold opacity-0 translate-x-[-10px] group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 transition-all duration-300 flex-1 text-left text-white">
+                        {text}
+                    </span>
+
+                    {/* Выпадающая бирка для активного окна при СВЕРНУТОЙ панели */}
+                    {activeTab === id && (
+                        <div className="absolute left-[88px] opacity-100 group-hover/sidebar:opacity-0 bg-brand-500 text-white text-xs font-bold px-4 py-2.5 rounded-r-xl pointer-events-none transition-opacity duration-300 shadow-[5px_0_15px_rgba(0,0,0,0.3)] hidden md:block border border-l-0 border-white/20 whitespace-nowrap z-50">
+                            {text}
+                        </div>
+                    )}
                 </button> 
             );
 
+            const appFontFamily = config.styles?.fontFamily || 'Inter';
+
+            // Эффект красивого фона за главным контентом
+            useEffect(() => {
+                const container = document.getElementById('anime-background');
+                container.innerHTML = '';
+                for (let i = 0; i < 5; i++) {
+                    const div = document.createElement('div');
+                    div.classList.add('anime-particle');
+                    const size = Math.random() * 400 + 200;
+                    div.style.width = `${size}px`; div.style.height = `${size}px`;
+                    container.appendChild(div);
+                }
+                anime({ targets: '.anime-particle', translateX: () => anime.random(0, window.innerWidth), translateY: () => anime.random(0, window.innerHeight), scale: () => anime.random(0.5, 1.5), opacity: () => anime.random(0.05, 0.15), duration: () => anime.random(10000, 20000), easing: 'linear', direction: 'alternate', loop: true });
+            }, []);
+
             return (
-                <div className="flex h-screen bg-transparent z-10 relative text-slate-200">
+                <div className="flex h-screen bg-transparent z-10 relative overflow-hidden" style={{ fontFamily: appFontFamily }}>
                     
-                    {/* Боковая панель (Sidebar) */}
-                    <div className="w-[300px] glass-panel border-r border-white/5 flex flex-col z-20 shrink-0">
-                        <div className="p-8 border-b border-white/5 flex flex-col gap-2">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-purple-500 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.4)]">
-                                    <i className="fa-solid fa-bolt text-white text-xl"></i>
-                                </div>
-                                <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 leading-none tracking-tight">TikTimer<br/><span className="text-xs text-brand-400 tracking-widest uppercase">PRO Panel</span></h1>
+                    {}
+                    <div className="group/sidebar w-[88px] hover:w-[320px] transition-all duration-500 ease-in-out glass-panel border-r border-white/5 flex flex-col z-50 absolute left-0 top-0 h-full overflow-hidden shadow-[10px_0_30px_rgba(0,0,0,0.3)]">
+                        
+                        {/* Шапка панели (Лого) */}
+                        <div className="h-[104px] p-6 border-b border-white/5 flex items-center gap-4 whitespace-nowrap shrink-0">
+                            <div className="w-10 h-10 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+                                <i className="fa-solid fa-bolt text-white text-lg"></i>
                             </div>
-                            
-                            <div className="flex items-center gap-4 mt-6 bg-dark-900/50 p-3 rounded-xl border border-white/5">
+                            <div className="opacity-0 translate-x-[-10px] group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 transition-all duration-300">
+                                <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 leading-none tracking-tight" style={{fontFamily: 'Inter'}}>TikTimer<br/><span className="text-[10px] text-brand-400 tracking-widest uppercase">PRO Panel</span></h1>
+                            </div>
+                        </div>
+                        
+                        {/* Статусы (в свернутом виде - только точки, в развернутом - с текстом) */}
+                        <div className="px-6 py-4 border-b border-white/5 shrink-0 h-[64px] flex flex-col justify-center">
+                            <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2" title="Статус API TikTools">
-                                    <div className={`w-2.5 h-2.5 rounded-full ${status.tt.isActive ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-rose-500 shadow-[0_0_10px_#f43f5e]'} transition-all duration-500`}></div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Сервер</span>
+                                    <div className={`w-3 h-3 rounded-full shrink-0 ${status.tt.isActive ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-rose-500 shadow-[0_0_10px_#f43f5e]'} transition-all duration-500`}></div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap" style={{fontFamily: 'Inter'}}>Сервер API</span>
                                 </div>
-                                <div className="w-[1px] h-4 bg-white/10"></div>
                                 <div className="flex items-center gap-2" title="Статус реального стрима TikTok">
-                                    <div className={`w-2.5 h-2.5 rounded-full ${status.tt.isStreamLive ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-slate-600'} transition-all duration-500`}></div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Стрим</span>
+                                    <div className={`w-3 h-3 rounded-full shrink-0 ${status.tt.isStreamLive ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-slate-600'} transition-all duration-500`}></div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap" style={{fontFamily: 'Inter'}}>Лайв Стрим</span>
                                 </div>
                             </div>
                         </div>
                         
-                        <nav className="flex-1 py-4 flex flex-col overflow-y-auto custom-scrollbar">
+                        {/* Навигация */}
+                        <nav className="flex-1 py-4 flex flex-col overflow-y-auto custom-scrollbar overflow-x-hidden" style={{fontFamily: 'Inter'}}>
                             <TabBtn id="connect" icon="fa-solid fa-plug" text="Подключения" />
-                            <TabBtn id="timer" icon="fa-regular fa-clock" text="Таймер и Лайки" />
+                            <TabBtn id="timer" icon="fa-regular fa-clock" text="Лайки, Время, Сабы" />
                             <TabBtn id="buffs" icon="fa-solid fa-wand-magic-sparkles" text="Триггеры" />
                             <TabBtn id="roulette" icon="fa-solid fa-compact-disc" text="Рулетка" />
                             <TabBtn id="style" icon="fa-solid fa-swatchbook" text="Оформление" />
                             <TabBtn id="obs" icon="fa-solid fa-video" text="Виджеты OBS" />
                         </nav>
                         
-                        <div className="p-6 border-t border-white/5 flex flex-col gap-4 bg-dark-900/30">
-                            <div className="bg-gradient-to-br from-brand-900/30 to-purple-900/20 border border-brand-500/20 p-4 rounded-2xl relative overflow-hidden group">
-                                <div className="absolute -top-4 -right-4 w-20 h-20 bg-brand-500/10 rounded-full blur-xl group-hover:bg-brand-500/20 transition-all duration-500"></div>
-                                <h4 className="text-[10px] font-bold text-brand-300 uppercase tracking-wider mb-1 flex justify-between">PRO Доступ <i className="fa-solid fa-crown"></i></h4>
-                                <div className="text-2xl font-black text-white mb-2">{daysLeft} <span className="text-sm font-semibold text-slate-400">дней</span></div>
-                                <div className="w-full h-1.5 bg-dark-900 rounded-full mb-3 overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-brand-500 to-purple-500" style={{ width: `${Math.min(100, (daysLeft/30)*100)}%` }}></div>
+                        {/* Футер панели (Дни PRO, Запуск, Выход) */}
+                        <div className="p-6 border-t border-white/5 flex flex-col gap-3 bg-dark-900/30 shrink-0" style={{fontFamily: 'Inter'}}>
+                            {/* Блок PRO */}
+                            <div className="bg-gradient-to-br from-brand-900/30 to-purple-900/20 border border-brand-500/20 rounded-2xl relative overflow-hidden group/pro flex transition-all duration-300 p-3 h-[70px] group-hover/sidebar:h-[110px] items-center group-hover/sidebar:items-start group-hover/sidebar:flex-col group-hover/sidebar:p-4">
+                                <div className="absolute -top-4 -right-4 w-20 h-20 bg-brand-500/10 rounded-full blur-xl group-hover/pro:bg-brand-500/20 transition-all duration-500"></div>
+                                {/* Иконка для свернутого состояния */}
+                                <div className="w-10 h-10 shrink-0 flex items-center justify-center group-hover/sidebar:hidden">
+                                    <i className="fa-solid fa-crown text-brand-400 text-xl"></i>
                                 </div>
-                                <button onClick={() => setShowRenew(true)} className="w-full bg-white/5 hover:bg-brand-600/30 text-slate-300 hover:text-white border border-white/10 hover:border-brand-500/50 text-xs font-bold py-2 rounded-xl transition-all">Продлить доступ</button>
+                                {/* Контент для развернутого состояния */}
+                                <div className="hidden group-hover/sidebar:flex flex-col w-full opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 delay-100">
+                                    <h4 className="text-[10px] font-bold text-brand-300 uppercase tracking-wider mb-1 flex justify-between">PRO Доступ <i className="fa-solid fa-crown"></i></h4>
+                                    <div className="text-xl font-black text-white mb-2">{daysLeft} <span className="text-xs font-semibold text-slate-400">дней</span></div>
+                                    <button onClick={() => setShowRenew(true)} className="w-full bg-white/5 hover:bg-brand-600/30 text-slate-300 hover:text-white border border-white/10 hover:border-brand-500/50 text-[10px] uppercase font-bold py-1.5 rounded-lg transition-all">Продлить</button>
+                                </div>
                             </div>
 
+                            {/* Кнопки управления */}
                             {isRunning ? (
-                                <button onClick={() => socket.emit('stop-timer')} className="w-full bg-rose-600/20 text-rose-400 border border-rose-500/30 py-4 rounded-2xl font-bold transition-all flex justify-center items-center gap-2 hover:bg-rose-600 hover:text-white"><i className="fa-solid fa-stop"></i> ОСТАНОВИТЬ</button>
+                                <button onClick={() => socket.emit('stop-timer')} className="w-full h-[52px] bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded-2xl font-bold transition-all flex items-center hover:bg-rose-600 hover:text-white overflow-hidden relative shrink-0">
+                                    <div className="w-[52px] h-[52px] shrink-0 flex items-center justify-center"><i className="fa-solid fa-stop"></i></div>
+                                    <span className="whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 flex-1 text-center pr-[52px]">ОСТАНОВИТЬ</span>
+                                </button>
                             ) : (
-                                <button onClick={() => { if(hasChanges) return; socket.emit('start-timer', formatPayload(config)); }} className="w-full bg-gradient-to-r from-brand-600 to-purple-600 text-white py-4 rounded-2xl font-bold transition-all flex justify-center items-center gap-2 hover:shadow-[0_0_20px_rgba(99,102,241,0.5)]"><i className="fa-solid fa-play"></i> ЗАПУСК ТАЙМЕРА</button>
+                                <button onClick={() => { if(hasChanges) return; socket.emit('start-timer', formatPayload(config)); }} className="w-full h-[52px] bg-gradient-to-r from-brand-600 to-purple-600 text-white rounded-2xl font-bold transition-all flex items-center hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] overflow-hidden relative shrink-0">
+                                    <div className="w-[52px] h-[52px] shrink-0 flex items-center justify-center"><i className="fa-solid fa-play"></i></div>
+                                    <span className="whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 flex-1 text-center pr-[52px]">ЗАПУСК</span>
+                                </button>
                             )}
-                            <button onClick={onLogout} className="text-slate-500 hover:text-rose-400 text-xs uppercase font-bold mt-2 transition-colors flex justify-center items-center gap-2"><i className="fa-solid fa-power-off"></i> Выйти из аккаунта</button>
+                            
+                            {/* Выход */}
+                            <button onClick={onLogout} className="w-full h-[40px] text-slate-500 hover:text-rose-400 text-[10px] uppercase font-bold transition-colors flex items-center overflow-hidden shrink-0">
+                                <div className="w-[52px] h-[40px] shrink-0 flex items-center justify-center"><i className="fa-solid fa-power-off text-base"></i></div>
+                                <span className="whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300">Выйти из аккаунта</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* Основной контент */}
-                    <div className="flex-1 overflow-y-auto p-10 relative">
-                        <div ref={contentRef} className="max-w-[900px] mx-auto pb-32">
+                    {}
+                    <div className="flex-1 ml-[88px] overflow-y-auto p-10 relative">
+                        <div ref={contentRef} className="max-w-[1000px] mx-auto pb-32">
                             
-                            {}
+                            {/* Вкладка Подключения */}
                             {activeTab === 'connect' && (
                                 <div className="space-y-6">
-                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Подключения</h2>
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h2 className="text-4xl font-black text-white tracking-tight">Подключения</h2>
+                                        <button onClick={openRemoteWindow} className="bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/50 text-emerald-400 py-3 px-6 rounded-2xl text-sm font-bold flex justify-center items-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]" style={{fontFamily: 'Inter'}}><i className="fa-solid fa-mobile-screen"></i> Открыть Пульт (Remote)</button>
+                                    </div>
                                     
                                     {[
                                         { id: 'tt', icon: 'fa-tiktok', color: 'cyan', name: 'TikTok (TikTool)', sub: status.tt.text, active: status.tt.isActive, 
-                                          inputs: [
-                                              { key: 'username', pl: '@username', val: config.username },
-                                              { key: 'ttApiKey', pl: 'API Key', val: config.ttApiKey }
-                                          ], 
-                                          onConn: () => socket.emit('connect-tiktok', { username: config.username, apiKey: config.ttApiKey }), 
-                                          onDisconn: () => socket.emit('disconnect-tiktok') 
+                                          inputs: [{ key: 'username', pl: '@username', val: config.username }, { key: 'ttApiKey', pl: 'API Key (tik.tools)', val: config.ttApiKey }], 
+                                          onConn: () => socket.emit('connect-tiktok', { username: config.username, apiKey: config.ttApiKey }), onDisconn: () => socket.emit('disconnect-tiktok') 
                                         },
                                         { id: 'da', icon: 'fa-shield-halved', color: 'orange', name: 'DonationAlerts', sub: status.da, active: status.da.includes('Успешно'),
                                           inputs: [], 
-                                          onConn: () => {}, // Mock window open
-                                          onDisconn: () => socket.emit('disconnect-da')
+                                          onConn: () => window.open(`https://www.donationalerts.com/oauth/authorize?client_id=12952&response_type=token&scope=oauth-user-show%20oauth-donation-subscribe&redirect_uri=${window.location.origin}/da-callback`, '_blank', 'width=500,height=700'), onDisconn: () => socket.emit('disconnect-da')
                                         },
                                         { id: 'dp', icon: 'fa-wallet', color: 'blue', name: 'DonatePay', sub: status.dp, active: status.dp.includes('Успешно'),
                                           inputs: [{ key: 'dpApiKey', pl: 'API Key', val: config.dpApiKey }], 
-                                          onConn: () => socket.emit('connect-dp', config.dpApiKey), 
-                                          onDisconn: () => socket.emit('disconnect-dp')
+                                          onConn: () => socket.emit('connect-dp', config.dpApiKey), onDisconn: () => socket.emit('disconnect-dp')
+                                        },
+                                        { id: 'dx', icon: 'fa-bolt', color: 'purple', name: 'DonateX.gg', sub: status.dx, active: status.dx.includes('Успешно'),
+                                          inputs: [{ key: 'dxToken', pl: 'External Token', val: config.dxToken }], 
+                                          onConn: () => socket.emit('connect-dx', config.dxToken), onDisconn: () => socket.emit('disconnect-dx')
                                         }
                                     ].map(service => (
                                         <div key={service.id} className="glass-panel p-6 rounded-3xl flex items-center gap-6 group hover:border-white/20 transition-colors">
                                             <div className={`w-14 h-14 bg-${service.color}-500/10 flex items-center justify-center rounded-2xl border border-${service.color}-500/20 shrink-0 group-hover:scale-110 transition-transform`}>
-                                                <i className={`fa-brands ${service.icon.startsWith('fa-') && !service.icon.includes('-halved') && !service.icon.includes('wallet') ? service.icon : ''} fa-solid ${service.icon.includes('-halved') || service.icon.includes('wallet') ? service.icon : ''} text-${service.color}-400 text-3xl`}></i>
+                                                <i className={`fa-brands ${service.icon.startsWith('fa-') && !service.icon.includes('-halved') && !service.icon.includes('wallet') && !service.icon.includes('bolt') ? service.icon : ''} fa-solid ${service.icon.includes('-halved') || service.icon.includes('wallet') || service.icon.includes('bolt') ? service.icon : ''} text-${service.color}-400 text-3xl`}></i>
                                             </div>
                                             <div className="flex flex-col w-1/4 shrink-0">
-                                                <h3 className="font-bold text-lg text-white">{service.name}</h3>
-                                                <span className={`text-xs font-bold mt-1 ${service.active ? 'text-emerald-400' : 'text-slate-500'}`}>{service.sub}</span>
+                                                <h3 className="font-bold text-lg text-white" style={{fontFamily: 'Inter'}}>{service.name}</h3>
+                                                <span className={`text-xs font-bold mt-1 ${service.active ? 'text-emerald-400' : 'text-slate-500'}`} style={{fontFamily: 'Inter'}}>{service.sub}</span>
                                             </div>
-                                            <div className="flex-1 flex gap-3">
+                                            <div className="flex-1 flex gap-3" style={{fontFamily: 'Inter'}}>
                                                 {!service.active && service.inputs.map((inp, idx) => (
-                                                    <input key={idx} type="text" value={inp.val} onChange={e=>setConfig({...config, [inp.key]: e.target.value})} placeholder={inp.pl} className="w-full input-glass rounded-xl px-4 py-3 outline-none text-sm text-white" />
+                                                    <input key={idx} type="text" value={inp.val} onChange={e=>setConfig({...config, [inp.key]: e.target.value})} placeholder={inp.pl} className="w-full input-glass rounded-xl px-4 py-3 outline-none text-sm text-white font-semibold" />
                                                 ))}
                                             </div>
-                                            <button onClick={service.active ? service.onDisconn : service.onConn} className={`w-40 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg ${service.active ? 'bg-rose-600/80 hover:bg-rose-500 border border-rose-500/50' : `bg-${service.color}-600/80 hover:bg-${service.color}-500 border border-${service.color}-500/50`}`}>
+                                            <button onClick={service.active ? service.onDisconn : service.onConn} className={`w-40 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg ${service.active ? 'bg-rose-600/80 hover:bg-rose-500 border border-rose-500/50' : `bg-${service.color}-600/80 hover:bg-${service.color}-500 border border-${service.color}-500/50`}`} style={{fontFamily: 'Inter'}}>
                                                 {service.active ? 'Отключить' : 'Подключить'}
                                             </button>
                                         </div>
@@ -645,178 +586,366 @@
                                 </div>
                             )}
 
-                            {}
+                            {/* Вкладка Таймер */}
                             {activeTab === 'timer' && (
                                 <div className="space-y-6">
-                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Таймер и Лайки</h2>
+                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Лайки, Время, Подписки</h2>
                                     
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="glass-panel p-8 rounded-3xl flex flex-col justify-center items-center">
-                                            <h3 className="font-bold text-slate-400 uppercase tracking-wider text-xs mb-4">Начальное время (мин)</h3>
-                                            <input type="number" value={config.initialTime} onChange={e => setConfig({...config, initialTime: Number(e.target.value)})} className="w-32 bg-dark-900/50 border border-white/10 rounded-2xl py-4 text-4xl font-black text-center outline-none focus:border-brand-500 text-white transition-colors shadow-inner" />
+                                            <h3 className="font-bold text-slate-400 uppercase tracking-wider text-sm mb-4" style={{fontFamily: 'Inter'}}>Начальное время (мин)</h3>
+                                            <input type="number" value={config.initialTime} onChange={e => setConfig({...config, initialTime: Number(e.target.value)})} className="w-full max-w-[200px] bg-dark-900/50 border border-white/10 rounded-2xl py-4 text-5xl font-black text-center outline-none focus:border-brand-500 text-white transition-colors shadow-inner" style={{fontFamily: 'Inter'}} />
                                         </div>
                                         
-                                        <div className="glass-panel p-6 rounded-3xl flex flex-col gap-4 justify-center">
+                                        <div className="glass-panel p-6 rounded-3xl flex flex-col gap-4 justify-center" style={{fontFamily: 'Inter'}}>
                                             <div className={`flex justify-between items-center bg-dark-900/40 p-4 rounded-2xl border ${config.likesEnabled ? 'border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/5'} transition-all`}>
                                                 <div className="flex items-center gap-4">
-                                                    <div onClick={() => setConfig({...config, likesEnabled: !config.likesEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${config.likesEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                                                        <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.likesEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                                                    </div>
-                                                    <span className="font-bold text-white">Лайки</span>
+                                                    <div onClick={() => setConfig({...config, likesEnabled: !config.likesEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${config.likesEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.likesEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                                    <span className="font-bold text-white text-sm">За <input type="number" value={config.likeThreshold} onChange={e => setConfig({...config, likeThreshold: Number(e.target.value)})} className="w-16 input-glass text-center rounded-lg py-1 outline-none ml-1 mr-1" /> лайков</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm text-slate-400">За</span>
-                                                    <input type="number" value={config.likeThreshold} onChange={e => setConfig({...config, likeThreshold: Number(e.target.value)})} className="w-16 input-glass text-center rounded-lg py-1 font-bold outline-none" />
-                                                    <i className="fa-solid fa-arrow-right text-slate-600 text-xs mx-1"></i>
+                                                <div className="flex items-center">
                                                     <input type="number" value={config.likeTime} onChange={e => setConfig({...config, likeTime: Number(e.target.value)})} className="w-16 input-glass text-center rounded-lg py-1 text-emerald-400 font-bold outline-none" />
-                                                    <span className="text-emerald-400 font-bold text-sm">сек</span>
+                                                    <span className="text-emerald-400 font-bold text-sm ml-2">сек</span>
+                                                </div>
+                                            </div>
+
+                                            <div className={`flex justify-between items-center bg-dark-900/40 p-4 rounded-2xl border ${config.likesRouletteEnabled ? 'border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)]' : 'border-white/5'} transition-all`}>
+                                                <div className="flex items-center gap-4">
+                                                    <div onClick={() => setConfig({...config, likesRouletteEnabled: !config.likesRouletteEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${config.likesRouletteEnabled ? 'bg-purple-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.likesRouletteEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                                    <span className="font-bold text-white text-sm">Рулетка за общие лайки</span>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <input type="number" value={config.likesRouletteThreshold} onChange={e => setConfig({...config, likesRouletteThreshold: Number(e.target.value)})} className="w-24 input-glass text-center rounded-lg py-1 text-purple-400 font-bold outline-none" />
                                                 </div>
                                             </div>
 
                                             <div className={`flex justify-between items-center bg-dark-900/40 p-4 rounded-2xl border ${config.subsEnabled ? 'border-brand-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]' : 'border-white/5'} transition-all`}>
                                                 <div className="flex items-center gap-4">
-                                                    <div onClick={() => setConfig({...config, subsEnabled: !config.subsEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${config.subsEnabled ? 'bg-brand-500' : 'bg-slate-700'}`}>
-                                                        <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.subsEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                                                    </div>
-                                                    <span className="font-bold text-white">Сабы</span>
+                                                    <div onClick={() => setConfig({...config, subsEnabled: !config.subsEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${config.subsEnabled ? 'bg-brand-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.subsEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                                    <span className="font-bold text-white text-sm">Новый Подписчик</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <i className="fa-solid fa-plus text-brand-400 text-xs mr-2"></i>
+                                                <div className="flex items-center">
                                                     <input type="number" value={config.subTime} onChange={e => setConfig({...config, subTime: Number(e.target.value)})} className="w-16 input-glass text-center rounded-lg py-1 text-brand-400 font-bold outline-none" />
-                                                    <span className="text-brand-400 font-bold text-sm">сек</span>
+                                                    <span className="text-brand-400 font-bold text-sm ml-2">сек</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className={`glass-panel p-8 rounded-3xl transition-all border ${config.bonusEnabled ? 'border-purple-500/30 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'border-white/5'}`}>
+                                    <div className={`glass-panel p-8 rounded-3xl transition-all border ${config.bonusEnabled ? 'border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.1)]' : 'border-white/5'}`}>
                                         <div className="flex items-center gap-4 mb-6">
-                                            <div onClick={() => setConfig({...config, bonusEnabled: !config.bonusEnabled})} className={`w-14 h-7 rounded-full relative cursor-pointer transition-colors ${config.bonusEnabled ? 'bg-purple-500' : 'bg-slate-700'}`}>
-                                                <div className={`w-5 h-5 rounded-full bg-white absolute top-1 transition-transform ${config.bonusEnabled ? 'translate-x-8' : 'translate-x-1'}`}></div>
-                                            </div>
-                                            <h3 className="text-xl font-bold text-white tracking-tight">Бонусное время при нуле</h3>
+                                            <div onClick={() => setConfig({...config, bonusEnabled: !config.bonusEnabled})} className={`w-14 h-7 rounded-full relative cursor-pointer transition-colors ${config.bonusEnabled ? 'bg-indigo-500' : 'bg-slate-700'}`}><div className={`w-5 h-5 rounded-full bg-white absolute top-1 transition-transform ${config.bonusEnabled ? 'translate-x-8' : 'translate-x-1'}`}></div></div>
+                                            <h3 className="text-xl font-bold text-white tracking-tight" style={{fontFamily: 'Inter'}}>Бонусное время при нуле</h3>
                                         </div>
-                                        <div className={`grid grid-cols-2 gap-6 ${!config.bonusEnabled && 'opacity-30 pointer-events-none'}`}>
-                                            <div className="bg-dark-900/50 p-4 rounded-2xl border border-white/5"><label className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 block">Минимум (сек)</label><input type="number" value={config.bonusMin} onChange={e => setConfig({...config, bonusMin: Number(e.target.value)})} className="w-full bg-transparent text-2xl text-purple-400 font-black outline-none border-b border-white/10 focus:border-purple-500 pb-1" /></div>
-                                            <div className="bg-dark-900/50 p-4 rounded-2xl border border-white/5"><label className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 block">Максимум (сек)</label><input type="number" value={config.bonusMax} onChange={e => setConfig({...config, bonusMax: Number(e.target.value)})} className="w-full bg-transparent text-2xl text-purple-400 font-black outline-none border-b border-white/10 focus:border-purple-500 pb-1" /></div>
+                                        <div className={`grid grid-cols-2 gap-6 ${!config.bonusEnabled && 'opacity-30 pointer-events-none'}`} style={{fontFamily: 'Inter'}}>
+                                            <div className="bg-dark-900/50 p-4 rounded-2xl border border-white/5"><label className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 block">Минимум (сек)</label><input type="number" value={config.bonusMin} onChange={e => setConfig({...config, bonusMin: Number(e.target.value)})} className="w-full bg-transparent text-2xl text-indigo-400 font-black outline-none border-b border-white/10 focus:border-indigo-500 pb-1" /></div>
+                                            <div className="bg-dark-900/50 p-4 rounded-2xl border border-white/5"><label className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 block">Максимум (сек)</label><input type="number" value={config.bonusMax} onChange={e => setConfig({...config, bonusMax: Number(e.target.value)})} className="w-full bg-transparent text-2xl text-indigo-400 font-black outline-none border-b border-white/10 focus:border-indigo-500 pb-1" /></div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {}
+                            {/* Вкладка Триггеры */}
                             {activeTab === 'buffs' && (
                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-end mb-8">
-                                        <h2 className="text-4xl font-black text-white tracking-tight">Триггеры времени</h2>
-                                        <button onClick={() => setConfig({...config, customGifts: [...config.customGifts, { id: Date.now().toString(), gift: null, type: 'add', value: 60, threshold: 0, isEnabled: true }]})} className="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all shadow-lg backdrop-blur-sm"><i className="fa-solid fa-plus mr-2"></i>Создать триггер</button>
+                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Триггеры и Баффы</h2>
+                                    
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className={`glass-panel p-6 rounded-2xl border transition-all ${config.isMultiplierGiftEnabled ? 'border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'border-white/5'}`}>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <div className="flex items-center gap-3"><i className="fa-solid fa-bolt text-amber-500 text-xl"></i><h3 className="font-bold text-white" style={{fontFamily: 'Inter'}}>Прибавление Х (Buff)</h3></div>
+                                                <div onClick={() => setConfig({...config, isMultiplierGiftEnabled: !config.isMultiplierGiftEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer ${config.isMultiplierGiftEnabled ? 'bg-amber-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.isMultiplierGiftEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                            </div>
+                                            <div className={!config.isMultiplierGiftEnabled ? 'opacity-30 pointer-events-none' : ''}>
+                                                <div className="flex items-center justify-between bg-dark-900/50 p-3 rounded-xl border border-white/10 mb-4">
+                                                    {config.giftMultiplier ? <div className="flex items-center gap-3"><img src={config.giftMultiplier.icon} className="w-8 h-8 drop-shadow-md"/> <span className="font-bold text-sm text-white" style={{fontFamily: 'Inter'}}>{config.giftMultiplier.name}</span></div> : <span className="text-slate-500 text-sm font-bold" style={{fontFamily: 'Inter'}}>Не выбран</span>}
+                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftMultiplier' })} className="bg-white/10 hover:bg-white/20 text-xs font-bold px-4 py-2 rounded-lg text-white transition" style={{ fontFamily: 'Inter' }}>Выбрать</button>
+                                                </div>
+                                                <div className="flex gap-3" style={{ fontFamily: 'Inter' }}>
+                                                    <div className="flex-1 bg-dark-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center"><span className="text-amber-500 font-bold mr-2 text-lg">x</span><input type="number" value={config.multiplierValue} onChange={e=>setConfig({...config, multiplierValue: Number(e.target.value)})} className="bg-transparent w-full outline-none font-black text-white text-lg"/></div>
+                                                    <div className="flex-1 bg-dark-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center"><input type="number" value={config.multiplierDuration} onChange={e=>setConfig({...config, multiplierDuration: Number(e.target.value)})} className="bg-transparent w-full outline-none font-black text-white text-right text-lg"/><span className="text-slate-500 text-xs ml-2 font-bold uppercase">Сек</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={`glass-panel p-6 rounded-2xl border transition-all ${config.isDebuffGiftEnabled ? 'border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'border-white/5'}`}>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <div className="flex items-center gap-3"><i className="fa-solid fa-skull text-purple-500 text-xl"></i><h3 className="font-bold text-white" style={{fontFamily: 'Inter'}}>Убавление Х (Debuff)</h3></div>
+                                                <div onClick={() => setConfig({...config, isDebuffGiftEnabled: !config.isDebuffGiftEnabled})} className={`w-12 h-6 rounded-full relative cursor-pointer ${config.isDebuffGiftEnabled ? 'bg-purple-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.isDebuffGiftEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                            </div>
+                                            <div className={!config.isDebuffGiftEnabled ? 'opacity-30 pointer-events-none' : ''}>
+                                                <div className="flex items-center justify-between bg-dark-900/50 p-3 rounded-xl border border-white/10 mb-4">
+                                                    {config.giftDebuff ? <div className="flex items-center gap-3"><img src={config.giftDebuff.icon} className="w-8 h-8 drop-shadow-md"/> <span className="font-bold text-sm text-white" style={{fontFamily: 'Inter'}}>{config.giftDebuff.name}</span></div> : <span className="text-slate-500 text-sm font-bold" style={{fontFamily: 'Inter'}}>Не выбран</span>}
+                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftDebuff' })} className="bg-white/10 hover:bg-white/20 text-xs font-bold px-4 py-2 rounded-lg text-white transition" style={{ fontFamily: 'Inter' }}>Выбрать</button>
+                                                </div>
+                                                <div className="flex gap-3" style={{ fontFamily: 'Inter' }}>
+                                                    <div className="flex-1 bg-dark-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center"><span className="text-purple-500 font-bold mr-2 text-lg">/</span><input type="number" value={config.debuffValue} onChange={e=>setConfig({...config, debuffValue: Number(e.target.value)})} className="bg-transparent w-full outline-none font-black text-white text-lg"/></div>
+                                                    <div className="flex-1 bg-dark-900/50 border border-white/10 rounded-xl px-4 py-3 flex items-center"><input type="number" value={config.debuffDuration} onChange={e=>setConfig({...config, debuffDuration: Number(e.target.value)})} className="bg-transparent w-full outline-none font-black text-white text-right text-lg"/><span className="text-slate-500 text-xs ml-2 font-bold uppercase">Сек</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        {config.customGifts.map((cg, idx) => (
-                                            <div key={cg.id} className="glass-panel p-4 rounded-2xl flex gap-4 items-center group hover:border-brand-500/30 transition-colors">
-                                                <div className="text-slate-600 font-mono font-bold w-6 text-center">{idx + 1}</div>
-                                                
-                                                <div onClick={() => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, isEnabled: !c.isEnabled}:c)}))} className={`w-12 h-6 rounded-full relative cursor-pointer shrink-0 transition-colors ${cg.isEnabled ? 'bg-brand-500' : 'bg-slate-700'}`}>
-                                                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${cg.isEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                                    <div className="glass-panel p-8 rounded-3xl mt-8">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="font-bold text-white text-2xl flex items-center"><i className="fa-solid fa-wand-magic-sparkles text-brand-400 mr-3"></i>Кастомные триггеры</h3>
+                                            <button onClick={() => setConfig({...config, customGifts: [...config.customGifts, { id: Date.now().toString(), gift: null, type: 'add', value: 60, threshold: 0, isEnabled: true }]})} className="bg-brand-600/20 hover:bg-brand-600 border border-brand-500/50 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]" style={{ fontFamily: 'Inter' }}><i className="fa-solid fa-plus mr-2"></i> Создать триггер</button>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {config.customGifts.map(cg => (
+                                                <div key={cg.id} className="flex gap-4 items-center bg-dark-900/40 p-4 rounded-2xl border border-white/10 group hover:border-brand-500/50 transition-colors">
+                                                    <div onClick={() => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, isEnabled: !c.isEnabled}:c)}))} className={`w-12 h-6 rounded-full relative cursor-pointer shrink-0 ${cg.isEnabled ? 'bg-brand-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${cg.isEnabled ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                                    
+                                                    <div className="flex items-center gap-3 flex-1 bg-white/5 p-3 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors" onClick={() => setModal({ isOpen: true, key: `custom_${cg.id}` })}>
+                                                        {cg.gift ? <><img src={cg.gift.icon} className="w-8 h-8 drop-shadow-md"/> <span className="font-bold text-sm text-white truncate max-w-[200px]" style={{fontFamily: 'Inter'}}>{cg.gift.name}</span></> : <span className="text-slate-500 text-sm font-bold px-2" style={{fontFamily: 'Inter'}}>Выбрать подарок...</span>}
+                                                    </div>
+                                                    
+                                                    <select value={cg.type} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, type: e.target.value}:c)}))} className="input-glass rounded-xl px-3 py-3 text-sm text-white outline-none font-bold" style={{ fontFamily: 'Inter' }}>
+                                                        <option value="add" className="bg-dark-800">+ Добавить время</option>
+                                                        <option value="sub" className="bg-dark-800">- Отнять время</option>
+                                                        <option value="sub_threshold" className="bg-dark-800">- Отнять (до порога)</option>
+                                                        <option value="set" className="bg-dark-800">= Установить время</option>
+                                                        <option value="reset" className="bg-dark-800">Обнулить (0)</option>
+                                                    </select>
+                                                    
+                                                    {cg.type !== 'reset' && cg.type !== 'sub_threshold' && (
+                                                        <input type="number" value={cg.value} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, value: Number(e.target.value)}:c)}))} className="w-24 input-glass rounded-xl px-4 py-3 text-center font-black text-white outline-none" placeholder="Сек" style={{ fontFamily: 'Inter' }} />
+                                                    )}
+                                                    
+                                                    {cg.type === 'sub_threshold' && (
+                                                        <div className="flex gap-2" style={{ fontFamily: 'Inter' }}>
+                                                            <input type="number" value={cg.value} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, value: Number(e.target.value)}:c)}))} className="w-20 bg-rose-900/20 border border-rose-500/50 rounded-xl px-3 py-3 text-center font-black text-rose-400 outline-none" placeholder="Отнять" title="Сколько секунд отнять" />
+                                                            <input type="number" value={cg.threshold !== undefined ? cg.threshold : 300} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, threshold: Number(e.target.value)}:c)}))} className="w-20 bg-emerald-900/20 border border-emerald-500/50 rounded-xl px-3 py-3 text-center font-black text-emerald-400 outline-none" placeholder="Порог" title="Ниже скольки секунд не опускать таймер" />
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <button onClick={() => setConfig(p=>({...p, customGifts: p.customGifts.filter(c=>c.id!==cg.id)}))} className="w-12 h-12 flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"><i className="fa-solid fa-trash-can text-lg"></i></button>
                                                 </div>
-                                                
-                                                <div className="flex items-center gap-3 flex-1 bg-dark-900/50 p-3 rounded-xl border border-white/5 cursor-pointer hover:border-brand-500/50 transition-colors" onClick={() => setModal({ isOpen: true, key: `custom_${cg.id}` })}>
-                                                    {cg.gift ? <><img src={cg.gift.icon} className="w-8 h-8 drop-shadow-md"/> <span className="font-bold text-sm text-white truncate max-w-[200px]">{cg.gift.name}</span></> : <div className="flex items-center gap-2 text-slate-500"><div className="w-8 h-8 rounded-full bg-white/5 border border-dashed border-slate-600 flex items-center justify-center"><i className="fa-solid fa-gift text-xs"></i></div><span className="text-sm font-bold">Выбрать подарок...</span></div>}
+                                            ))}
+                                            {config.customGifts.length === 0 && (
+                                                <div className="border-2 border-dashed border-white/10 rounded-3xl p-12 text-center text-slate-500 flex flex-col items-center justify-center">
+                                                    <i className="fa-solid fa-ghost text-4xl mb-4 opacity-50"></i>
+                                                    <p className="font-bold" style={{fontFamily: 'Inter'}}>Пока нет триггеров. Создайте свой первый!</p>
                                                 </div>
-                                                
-                                                <select value={cg.type} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, type: e.target.value}:c)}))} className="input-glass rounded-xl px-3 py-3 text-sm text-white outline-none font-bold">
-                                                    <option value="add" className="bg-dark-800">+ Добавить</option>
-                                                    <option value="sub" className="bg-dark-800">- Отнять</option>
-                                                    <option value="set" className="bg-dark-800">= Установить</option>
-                                                </select>
-                                                
-                                                <input type="number" value={cg.value} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, value: Number(e.target.value)}:c)}))} className="w-24 input-glass rounded-xl px-3 py-3 text-center font-black text-brand-300 outline-none" placeholder="Сек" />
-                                                <span className="text-xs font-bold text-slate-500">СЕК</span>
-                                                
-                                                <button onClick={() => setConfig(p=>({...p, customGifts: p.customGifts.filter(c=>c.id!==cg.id)}))} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"><i className="fa-solid fa-trash-can text-lg"></i></button>
-                                            </div>
-                                        ))}
-                                        {config.customGifts.length === 0 && (
-                                            <div className="border-2 border-dashed border-white/10 rounded-3xl p-12 text-center text-slate-500 flex flex-col items-center justify-center">
-                                                <i className="fa-solid fa-ghost text-4xl mb-4 opacity-50"></i>
-                                                <p className="font-bold">Пока нет триггеров. Добавьте первый!</p>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
-                            {}
-                            {activeTab === 'style' && (
-                                <div className="space-y-8">
-                                    <h2 className="text-4xl font-black text-white tracking-tight">Оформление</h2>
+                            {/* Вкладка Рулетка */}
+                            {activeTab === 'roulette' && (
+                                <div className="space-y-6">
+                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Настройки Рулетки</h2>
                                     
-                                    <div className="glass-panel p-8 rounded-3xl">
-                                        <h3 className="font-black text-xl text-brand-400 mb-6 flex items-center gap-3"><i className="fa-solid fa-font"></i> Типографика</h3>
-                                        <label className="block text-xs uppercase font-bold tracking-wider text-slate-400 mb-3">Главный шрифт виджета</label>
-                                        <select value={config.styles.fontFamily} onChange={e=>setCfgStyle('fontFamily', e.target.value)} className="w-full input-glass rounded-xl px-5 py-4 text-lg font-bold text-white outline-none appearance-none" style={{ fontFamily: config.styles.fontFamily }}>
-                                            <option value="Inter">Inter (Современный)</option>
-                                            <option value="Bebas Neue">Bebas Neue (Жирный)</option>
-                                            <option value="Montserrat">Montserrat (Округлый)</option>
-                                            <option value="Pacifico">Pacifico (Рукописный)</option>
-                                            <option value="Caveat">Caveat (Маркер)</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="glass-panel p-8 rounded-3xl flex flex-col gap-6">
-                                            <h3 className="font-black text-xl text-emerald-400 flex items-center gap-3"><i className="fa-solid fa-palette"></i> Основные цвета</h3>
-                                            <div className="flex items-center justify-between bg-dark-900/50 p-3 rounded-2xl border border-white/5">
-                                                <span className="font-bold text-sm text-slate-300">Цвет Таймера</span>
-                                                <input type="color" value={config.styles.timerColor} onChange={e=>setCfgStyle('timerColor', e.target.value)} className="w-12 h-12 rounded-xl cursor-pointer bg-transparent border-none p-0" />
+                                    <div className="glass-panel p-8 rounded-3xl flex flex-col gap-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="font-bold text-white text-xl flex items-center" style={{fontFamily: 'Inter'}}><i className="fa-solid fa-compact-disc text-brand-400 mr-3"></i>Триггер рулетки</h3>
+                                                <p className="text-sm text-slate-400 mt-1" style={{fontFamily: 'Inter'}}>Подарок, который запускает вращение колеса</p>
                                             </div>
-                                            <div className="bg-dark-900/50 p-4 rounded-2xl border border-white/5">
-                                                <div className="flex justify-between mb-3"><span className="font-bold text-sm text-slate-300">Свечение (Glow)</span><span className="font-mono text-brand-400 font-bold">{config.styles.timerGlow}</span></div>
-                                                <input type="range" min="0" max="1" step="0.1" value={config.styles.timerGlow} onChange={e=>setCfgStyle('timerGlow', parseFloat(e.target.value))} className="w-full cursor-pointer accent-brand-500 h-2 bg-dark-800 rounded-full appearance-none" />
+                                            <div className="flex items-center gap-4 bg-dark-900/50 p-3 rounded-2xl border border-white/10">
+                                                {config.giftRoulette ? <div className="flex items-center gap-3 px-2"><img src={config.giftRoulette.icon} className="w-8 h-8 drop-shadow-md"/> <span className="font-bold text-sm text-white" style={{fontFamily: 'Inter'}}>{config.giftRoulette.name}</span></div> : <span className="text-slate-500 text-sm font-bold px-2" style={{fontFamily: 'Inter'}}>Не выбран</span>}
+                                                <button onClick={() => setModal({ isOpen: true, key: 'giftRoulette' })} className="bg-brand-600 px-4 py-2 rounded-xl text-sm font-bold text-white shadow-lg hover:bg-brand-500 transition-colors" style={{ fontFamily: 'Inter' }}>Изменить</button>
                                             </div>
                                         </div>
                                         
-                                        <div className="glass-panel p-8 rounded-3xl flex flex-col gap-6">
-                                            <h3 className="font-black text-xl text-rose-400 flex items-center gap-3"><i className="fa-solid fa-bell"></i> Уведомления</h3>
-                                            <div className="flex items-center justify-between bg-dark-900/50 p-3 rounded-2xl border border-white/5">
-                                                <span className="font-bold text-sm text-slate-300">Цвет Плюса (+ сек)</span>
-                                                <input type="color" value={config.styles.floatPlusColor || '#22c55e'} onChange={e=>setCfgStyle('floatPlusColor', e.target.value)} className="w-12 h-12 rounded-xl cursor-pointer bg-transparent border-none p-0" />
+                                        <div className="flex items-center gap-4 bg-dark-900/50 p-4 rounded-2xl border border-white/10 cursor-pointer hover:border-brand-500/30 transition-colors" onClick={() => setConfig({...config, rouletteGiftAddsCost: !config.rouletteGiftAddsCost})}>
+                                            <div className={`w-12 h-6 rounded-full relative shrink-0 ${config.rouletteGiftAddsCost ? 'bg-brand-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.rouletteGiftAddsCost ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                            <div>
+                                                <span className="text-sm font-bold text-white block" style={{fontFamily: 'Inter'}}>Учитывать стоимость подарка</span>
+                                                <span className="text-xs text-slate-400 block mt-1" style={{fontFamily: 'Inter'}}>Добавляет стоимость подарка (+сек) в таймер перед тем, как запустить рулетку</span>
                                             </div>
-                                            <div className="flex items-center justify-between bg-dark-900/50 p-3 rounded-2xl border border-white/5">
-                                                <span className="font-bold text-sm text-slate-300">Цвет Минуса (- сек)</span>
-                                                <input type="color" value={config.styles.floatMinusColor || '#ef4444'} onChange={e=>setCfgStyle('floatMinusColor', e.target.value)} className="w-12 h-12 rounded-xl cursor-pointer bg-transparent border-none p-0" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="glass-panel p-8 rounded-3xl">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="font-bold text-white text-xl flex items-center" style={{fontFamily: 'Inter'}}><i className="fa-solid fa-list-ul text-brand-400 mr-3"></i>Слоты колеса</h3>
+                                            <button onClick={() => setConfig({...config, rouletteSlots: [...config.rouletteSlots, { id: Date.now().toString(), label: 'Новый слот', type: 'add_time', value: 60, chance: 10, color: '#6366f1', isEliminable: false, isEnabled: true }]})} className="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-lg" style={{ fontFamily: 'Inter' }}><i className="fa-solid fa-plus mr-2"></i>Добавить слот</button>
+                                        </div>
+                                        
+                                        <div className="space-y-3">
+                                            {config.rouletteSlots.map((slot, index) => (
+                                                <div key={slot.id} className={`flex gap-3 items-center bg-dark-900/40 p-3 rounded-2xl border ${slot.isEnabled !== false ? 'border-white/10 hover:border-brand-500/50' : 'border-white/5 opacity-50'} transition-colors`}>
+                                                    <span className="text-slate-600 font-mono font-bold w-6 text-center">{index + 1}</span>
+                                                    
+                                                    <div onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEnabled: s.isEnabled === false ? true : false}:s)}))} className={`w-10 h-5 rounded-full relative cursor-pointer shrink-0 ${slot.isEnabled !== false ? 'bg-emerald-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${slot.isEnabled !== false ? 'translate-x-5' : 'translate-x-1'}`}></div></div>
+                                                    
+                                                    <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/20 shadow-inner relative group">
+                                                        <input type="color" value={slot.color} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, color: e.target.value}:s)}))} className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer" />
+                                                    </div>
+                                                    
+                                                    <input type="text" value={slot.label} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, label: e.target.value}:s)}))} className="flex-1 min-w-[150px] input-glass outline-none font-bold text-white px-3 py-2.5 rounded-xl text-sm" placeholder="Название на колесе" />
+                                                    
+                                                    <select value={slot.type} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, type: e.target.value}:s)}))} className="input-glass rounded-xl px-3 py-2.5 text-xs text-white outline-none font-bold" style={{ fontFamily: 'Inter' }}>
+                                                        <option value="add_time" className="bg-dark-800">+ Время</option>
+                                                        <option value="sub_time" className="bg-dark-800">- Время</option>
+                                                        <option value="multiply_time" className="bg-dark-800">Умножить (*)</option>
+                                                        <option value="divide_time" className="bg-dark-800">Разделить (/)</option>
+                                                        <option value="set_time" className="bg-dark-800">= Установить</option>
+                                                        <option value="multiplier" className="bg-dark-800">Бафф (x)</option>
+                                                        <option value="debuff" className="bg-dark-800">Дебафф (/)</option>
+                                                        <option value="extra_spin" className="bg-dark-800">Доп. прокрут</option>
+                                                        <option value="reset_time" className="bg-dark-800">Обнулить (0)</option>
+                                                        <option value="special" className="bg-dark-800">Особый Приз</option>
+                                                    </select>
+                                                    
+                                                    {['multiply_time','divide_time','multiplier','debuff'].includes(slot.type) && <input type="number" value={slot.multiplierValue||2} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, multiplierValue: Number(e.target.value)}:s)}))} className="w-16 input-glass rounded-xl px-2 py-2.5 text-sm text-center font-bold text-brand-300 outline-none" style={{ fontFamily: 'Inter' }} placeholder="Множ." title="Множитель" />}
+                                                    {['add_time','sub_time','set_time','multiplier','debuff','extra_spin'].includes(slot.type) && <input type="number" value={slot.value} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, value: Number(e.target.value)}:s)}))} className="w-20 input-glass rounded-xl px-2 py-2.5 text-sm text-center font-bold text-white outline-none" style={{ fontFamily: 'Inter' }} placeholder="Знач." title="Значение (сек)" />}
+                                                    
+                                                    <div className="flex items-center input-glass rounded-xl px-3 py-2.5 w-24 shrink-0" style={{ fontFamily: 'Inter' }}>
+                                                        <input type="number" value={slot.chance} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, chance: Number(e.target.value)}:s)}))} className="bg-transparent w-full outline-none text-sm text-right font-bold text-emerald-400"/> 
+                                                        <span className="text-sm text-slate-500 ml-1 font-bold">%</span>
+                                                    </div>
+                                                    
+                                                    <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEliminable: !s.isEliminable}:s)}))} className={`px-3 py-2.5 rounded-xl text-[10px] font-black tracking-wider transition-colors shrink-0 ${slot.isEliminable ? 'bg-brand-500/20 text-brand-300 border border-brand-500/50' : 'bg-white/5 text-slate-500 border border-transparent hover:bg-white/10'}`} style={{ fontFamily: 'Inter' }}>{slot.isEliminable ? '1 РАЗ' : 'МНОГОР.'}</button>
+                                                    
+                                                    <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.filter(s=>s.id!==slot.id)}))} className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"><i className="fa-solid fa-trash-can text-lg"></i></button>
+                                                </div>
+                                            ))}
+                                            {config.rouletteSlots.length === 0 && (
+                                                <div className="border-2 border-dashed border-white/10 rounded-3xl p-10 text-center text-slate-500 font-bold" style={{fontFamily: 'Inter'}}>Слотов пока нет. Добавьте первый!</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Вкладка Оформление */}
+                            {activeTab === 'style' && (
+                                <div className="space-y-8">
+                                    <h2 className="text-4xl font-black text-white tracking-tight">Оформление виджетов</h2>
+                                    
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="glass-panel p-8 rounded-3xl space-y-6">
+                                            <h3 className="font-bold text-brand-400 border-b border-white/10 pb-4 text-xl flex items-center"><i className="fa-solid fa-font mr-3"></i>Таймер и Шрифты</h3>
+                                            <div>
+                                                <label className="block text-xs uppercase tracking-wider text-slate-400 mb-2 font-bold" style={{fontFamily: 'Inter'}}>Шрифт текста (применяется ко всему)</label>
+                                                <select value={config.styles.fontFamily} onChange={e=>setCfgStyle('fontFamily', e.target.value)} className="w-full input-glass rounded-xl px-5 py-4 outline-none text-white font-bold text-lg appearance-none cursor-pointer">
+                                                    <option value="Inter" className="bg-dark-800">Inter (Современный)</option>
+                                                    <option value="Bebas Neue" className="bg-dark-800">Bebas Neue (Жирный/Крупный)</option>
+                                                    <option value="Montserrat" className="bg-dark-800">Montserrat (Округлый)</option>
+                                                    <option value="Comic Neue" className="bg-dark-800">Comic Neue (Веселый)</option>
+                                                    <option value="Oswald" className="bg-dark-800">Oswald (Строгий)</option>
+                                                    <option value="Pacifico" className="bg-dark-800">Pacifico (Рукописный)</option>
+                                                    <option value="Roboto" className="bg-dark-800">Roboto (Классика)</option>
+                                                    <option value="Open Sans" className="bg-dark-800">Open Sans (Чистый)</option>
+                                                    <option value="Raleway" className="bg-dark-800">Raleway (Элегантный)</option>
+                                                    <option value="Nunito" className="bg-dark-800">Nunito (Мягкий)</option>
+                                                    <option value="Playfair Display" className="bg-dark-800">Playfair Display (Винтаж)</option>
+                                                    <option value="Caveat" className="bg-dark-800">Caveat (Небрежный маркер)</option>
+                                                    <option value="Rubik" className="bg-dark-800">Rubik (Массивный)</option>
+                                                    <option value="Comfortaa" className="bg-dark-800">Comfortaa (Супер-круглый)</option>
+                                                    <option value="Ruslan Display" className="bg-dark-800">Ruslan Display (Славянский)</option>
+                                                    <option value="Kelly Slab" className="bg-dark-800">Kelly Slab (Квадратный)</option>
+                                                    <option value="Roboto Slab" className="bg-dark-800">Roboto Slab (Засечки)</option>
+                                                    <option value="Lobster" className="bg-dark-800">Lobster (Ретро скрипт)</option>
+                                                    <option value="Alice" className="bg-dark-800">Alice (Сказка)</option>
+                                                    <option value="PT Sans" className="bg-dark-800">PT Sans (Строгий 2)</option>
+                                                </select>
+                                                <div className="mt-3 text-[10px] text-brand-300 font-bold uppercase tracking-widest" style={{fontFamily: 'Inter'}}>Шрифт применяется к панели сразу для предпросмотра!</div>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between bg-dark-900/50 p-4 rounded-xl border border-white/5" style={{fontFamily: 'Inter'}}>
+                                                <label className="text-sm text-slate-300 font-bold">Основной Цвет Таймера</label>
+                                                <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.2)] relative">
+                                                    <input type="color" value={config.styles.timerColor} onChange={e=>setCfgStyle('timerColor', e.target.value)} className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer" />
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="bg-dark-900/50 p-5 rounded-xl border border-white/5" style={{fontFamily: 'Inter'}}>
+                                                <div className="flex justify-between mb-4"><label className="text-sm text-slate-300 font-bold">Сила свечения (Glow)</label><span className="text-brand-400 font-black">{config.styles.timerGlow}</span></div>
+                                                <input type="range" min="0" max="1" step="0.1" value={config.styles.timerGlow} onChange={e=>setCfgStyle('timerGlow', parseFloat(e.target.value))} className="w-full cursor-pointer accent-brand-500 h-2 bg-dark-800 rounded-full appearance-none outline-none" />
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between bg-dark-900/50 p-5 rounded-xl border border-white/5 cursor-pointer hover:border-brand-500/30 transition-colors" onClick={() => setCfgStyle('enableStroke', !config.styles.enableStroke)} style={{fontFamily: 'Inter'}}>
+                                                <div className="flex flex-col"><span className="font-bold text-white">Черная обводка</span><span className="text-xs text-slate-500 mt-1">Улучшает читаемость на светлом фоне</span></div>
+                                                <div className={`w-12 h-6 rounded-full relative transition-colors ${config.styles.enableStroke ? 'bg-brand-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${config.styles.enableStroke ? 'translate-x-7' : 'translate-x-1'}`}></div></div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="glass-panel p-8 rounded-3xl space-y-4">
+                                                <h3 className="font-bold text-emerald-400 border-b border-white/10 pb-4 text-xl flex items-center"><i className="fa-solid fa-bell mr-3"></i>Цвета Уведомлений</h3>
+                                                {[
+                                                    { label: 'Цвет Плюса (+ сек)', key: 'floatPlusColor', def: '#22c55e' },
+                                                    { label: 'Цвет Минуса (- сек)', key: 'floatMinusColor', def: '#ef4444' },
+                                                    { label: 'Цвет текста "ЛАЙКИ"', key: 'likeAlertColor', def: '#f43f5e' },
+                                                    { label: 'Цвет текста "ПОДПИСКА"', key: 'followAlertColor', def: '#34d399' }
+                                                ].map(c => (
+                                                    <div key={c.key} className="flex items-center justify-between bg-dark-900/30 p-3 rounded-xl border border-white/5 hover:bg-dark-900/50 transition-colors" style={{fontFamily: 'Inter'}}>
+                                                        <label className="text-sm text-slate-300 font-bold">{c.label}</label>
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/20 relative shrink-0"><input type="color" value={config.styles[c.key] || c.def} onChange={e=>setCfgStyle(c.key, e.target.value)} className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer" /></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            <div className="glass-panel p-8 rounded-3xl space-y-4">
+                                                <h3 className="font-bold text-purple-400 border-b border-white/10 pb-4 text-xl flex items-center"><i className="fa-solid fa-dice mr-3"></i>Рулетка и Карточки</h3>
+                                                {[
+                                                    { label: 'Фон полосы вращения', key: 'rouletteBg', def: '#0f172a' },
+                                                    { label: 'Фон карточки Ускорения', key: 'buffCardBg', def: '#10b981' },
+                                                    { label: 'Фон карточки Замедления', key: 'debuffCardBg', def: '#e11d48' }
+                                                ].map(c => (
+                                                    <div key={c.key} className="flex items-center justify-between bg-dark-900/30 p-3 rounded-xl border border-white/5 hover:bg-dark-900/50 transition-colors" style={{fontFamily: 'Inter'}}>
+                                                        <label className="text-sm text-slate-300 font-bold">{c.label}</label>
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/20 relative shrink-0"><input type="color" value={config.styles[c.key] || c.def} onChange={e=>setCfgStyle(c.key, e.target.value)} className="absolute -top-2 -left-2 w-16 h-16 cursor-pointer" /></div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* OBS / Roulette Placeholder for completion */}
-                            {(activeTab === 'obs' || activeTab === 'roulette') && (
-                                <div className="glass-panel p-12 rounded-3xl text-center border-dashed border-white/20">
-                                    <i className={`fa-solid ${activeTab === 'obs' ? 'fa-video' : 'fa-compact-disc'} text-5xl text-brand-400/50 mb-4`}></i>
-                                    <h3 className="text-2xl font-bold text-white mb-2">{activeTab === 'obs' ? 'Настройки OBS' : 'Настройки Рулетки'}</h3>
-                                    <p className="text-slate-400">Логика интерфейса аналогична предыдущим экранам. Дизайн обновлен под общий стиль.</p>
+                            {/* Вкладка OBS */}
+                            {activeTab === 'obs' && (
+                                <div className="space-y-6">
+                                    <h2 className="text-4xl font-black text-white mb-8 tracking-tight">Ссылки для OBS Browser</h2>
+                                    <div className="glass-panel p-8 rounded-3xl space-y-8 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+                                        
+                                        <div className="bg-dark-900/50 border border-brand-500/30 p-4 rounded-xl flex gap-4 items-center">
+                                            <div className="w-12 h-12 bg-brand-500/20 rounded-full flex items-center justify-center shrink-0"><i className="fa-solid fa-circle-info text-brand-400 text-xl"></i></div>
+                                            <p className="text-slate-300 text-sm" style={{fontFamily: 'Inter'}}>Эти ссылки уникальны для вашего аккаунта (UID: <span className="font-mono font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">{user.id}</span>). Добавьте их как источник "Браузер" в OBS Studio.</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <span className="font-bold text-white mb-3 flex items-center text-xl" style={{fontFamily: 'Inter'}}><div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center mr-3 border border-indigo-500/30"><i className="fa-solid fa-clock text-indigo-400"></i></div> Основной Таймер</span>
+                                            <div className="flex gap-3">
+                                                <input type="text" readOnly value={`${window.location.origin}/timer.html?uid=${user.id}`} className="flex-1 input-glass rounded-xl px-5 py-4 text-sm text-brand-200 outline-none font-mono selection:bg-brand-500/50" />
+                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/timer.html?uid=${user.id}`); anime({targets: '#copy1', scale: [1, 0.9, 1.1, 1], duration: 400}); }} id="copy1" className="bg-indigo-600 hover:bg-indigo-500 px-8 rounded-xl text-white font-bold transition-colors shadow-lg flex items-center gap-2" style={{ fontFamily: 'Inter' }}><i className="fa-solid fa-copy"></i> Копировать</button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <span className="font-bold text-white mb-3 flex items-center text-xl" style={{fontFamily: 'Inter'}}><div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center mr-3 border border-purple-500/30"><i className="fa-solid fa-dice text-purple-400"></i></div> Колесо Рулетки</span>
+                                            <div className="flex gap-3">
+                                                <input type="text" readOnly value={`${window.location.origin}/rullete.html?uid=${user.id}`} className="flex-1 input-glass rounded-xl px-5 py-4 text-sm text-purple-200 outline-none font-mono selection:bg-purple-500/50" />
+                                                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/rullete.html?uid=${user.id}`); anime({targets: '#copy2', scale: [1, 0.9, 1.1, 1], duration: 400}); }} id="copy2" className="bg-purple-600 hover:bg-purple-500 px-8 rounded-xl text-white font-bold transition-colors shadow-lg flex items-center gap-2" style={{ fontFamily: 'Inter' }}><i className="fa-solid fa-copy"></i> Копировать</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
-
                         </div>
                     </div>
 
-                    {/* Floating Save Bar */}
+                    {}
                     {hasChanges && (
-                        <div id="save-bar" className="absolute bottom-10 left-1/2 -translate-x-1/2 glass-panel p-3 rounded-full flex items-center gap-4 z-50 border border-brand-500/50 shadow-[0_10px_30px_rgba(99,102,241,0.3)]">
-                            <span className="font-bold text-brand-300 ml-4 mr-2">Есть несохраненные изменения</span>
-                            <button onClick={handleSave} className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-dark-900 rounded-full font-black transition-colors shadow-lg">СОХРАНИТЬ</button>
-                            <button onClick={handleCancel} className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 rounded-full transition-colors"><i className="fa-solid fa-xmark"></i></button>
+                        <div id="save-bar" className="absolute bottom-10 left-1/2 -translate-x-1/2 glass-panel p-3 rounded-full flex items-center gap-4 z-[90] border border-emerald-500/50 shadow-[0_15px_40px_rgba(16,185,129,0.3)]">
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 ml-1 shrink-0"><i className="fa-solid fa-floppy-disk"></i></div>
+                            <span className="font-bold text-emerald-300 mr-2 whitespace-nowrap" style={{fontFamily: 'Inter'}}>Есть несохраненные изменения</span>
+                            <button onClick={handleSave} className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-dark-900 rounded-full font-black transition-all shadow-lg text-sm">СОХРАНИТЬ</button>
+                            <button onClick={handleCancel} className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-full transition-colors shrink-0"><i className="fa-solid fa-rotate-left"></i></button>
                         </div>
                     )}
 
                     {showRenew && (
                         <div className="fixed inset-0 z-[100] bg-dark-900/90 backdrop-blur-xl flex items-center justify-center p-4">
-                            <div className="glass-panel rounded-3xl p-8 w-full max-w-md relative">
-                                <button onClick={() => setShowRenew(false)} className="absolute top-6 right-6 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors"><i className="fa-solid fa-xmark"></i></button>
+                            <div className="glass-panel rounded-3xl p-8 w-full max-w-md relative border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+                                <button onClick={() => setShowRenew(false)} className="absolute top-6 right-6 w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors hover:bg-white/10"><i className="fa-solid fa-xmark"></i></button>
                                 <PaymentWidget user={user || {id:1}} onVerified={(date) => { setSubUntil(date); setShowRenew(false); }} />
                             </div>
                         </div>
@@ -835,32 +964,30 @@
             const [loading, setLoading] = useState(true);
             const [subUntil, setSubUntil] = useState(null);
 
-            // Имитация загрузки для красивого показа UI, если Supabase не подключен
+            const checkSub = async (uid) => {
+                if(!supabase) { setSubUntil(new Date(Date.now() + 86400000000).toISOString()); setLoading(false); return; } // Demo mode bypass
+                const { data } = await supabase.from('ttimer_settings').select('subscription_until').eq('user_id', uid).single();
+                if (data) setSubUntil(data.subscription_until);
+                else setSubUntil(null);
+                setLoading(false);
+            };
+
             useEffect(() => {
                 if (!supabase) {
-                    setTimeout(() => {
-                        // Раскомментируйте, чтобы сразу видеть панель без авторизации при тестировании
-                        // setUser({ id: 1, email: 'demo@demo.com' }); setSubUntil(new Date(Date.now() + 86400000000).toISOString());
-                        setLoading(false);
-                    }, 1500);
+                    // DEMO MODE if no DB:
+                    setTimeout(() => { setUser({ id: 1, email: 'demo@demo.com' }); checkSub(1); }, 1500); 
                     return;
                 }
 
                 supabase.auth.getSession().then(({ data: { session } }) => { 
                     const u = session?.user ?? null;
                     setUser(u);
-                    if (u) {
-                        supabase.from('ttimer_settings').select('subscription_until').eq('user_id', u.id).single().then(({data}) => {
-                            setSubUntil(data ? data.subscription_until : null);
-                            setLoading(false);
-                        });
-                    } else { setLoading(false); }
+                    if (u) checkSub(u.id); else setLoading(false);
                 });
-
                 const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { 
                     const u = session?.user ?? null;
                     setUser(u);
-                    if (!u) { setSubUntil(null); setLoading(false); }
+                    if (u) checkSub(u.id); else { setSubUntil(null); setLoading(false); }
                 });
                 return () => subscription.unsubscribe();
             }, []);
@@ -868,13 +995,17 @@
             const isSubbed = subUntil && new Date(subUntil) > new Date();
 
             if (loading) return (
-                <div className="h-screen w-screen flex flex-col items-center justify-center bg-dark-900 text-brand-500">
-                    <div className="w-16 h-16 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin"></div>
-                    <span className="text-sm font-bold mt-6 tracking-widest uppercase text-slate-400">Инициализация...</span>
+                <div className="h-screen w-screen flex flex-col items-center justify-center bg-dark-900 text-brand-500" style={{fontFamily: 'Inter'}}>
+                    <div className="relative w-20 h-20">
+                        <div className="absolute inset-0 border-4 border-brand-500/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-t-brand-400 rounded-full animate-spin-slow" style={{ animationDuration: '1.5s' }}></div>
+                        <div className="absolute inset-0 flex items-center justify-center"><i className="fa-solid fa-bolt text-2xl animate-pulse"></i></div>
+                    </div>
+                    <span className="text-xs font-black mt-8 tracking-widest uppercase text-slate-400 bg-white/5 px-4 py-2 rounded-full border border-white/5 shadow-inner">Инициализация...</span>
                 </div>
             );
             
-            if (!user) return <AuthScreen onLogin={(u) => { setLoading(true); window.location.reload(); }} />;
+            if (!user) return <AuthScreen onLogin={(u) => { setLoading(true); checkSub(u.id); }} />;
             if (!isSubbed) return <SubscriptionScreen user={user} onLogout={() => {if(supabase) supabase.auth.signOut(); else setUser(null);}} onVerified={(date) => setSubUntil(date)} />;
             
             return <MainApp user={user} subUntil={subUntil} setSubUntil={setSubUntil} onLogout={() => {if(supabase) supabase.auth.signOut(); else setUser(null);}} />;

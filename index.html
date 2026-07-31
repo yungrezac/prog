@@ -9,9 +9,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class', // Обязательно для темной темы Preline
+            darkMode: 'class',
             theme: {
-                extend: {}
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
             }
         }
     </script>
@@ -26,24 +30,21 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
-    <!-- Icons & Preline UI Script -->
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/preline/dist/preline.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        
-        /* Шрифты для превью */
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;800&family=Comic+Neue:wght@700&family=Roboto:wght@700;900&family=Open+Sans:wght@700;800&family=Oswald:wght@700&family=Raleway:wght@800;900&family=Nunito:wght@800;900&family=Playfair+Display:wght@700;900&family=Caveat:wght@700&family=Rubik:wght@700;900&family=Pacifico&family=Yanone+Kaffeesatz:wght@700&family=Comfortaa:wght@700&family=Ruslan+Display&family=Kelly+Slab&family=Roboto+Slab:wght@700;900&family=Lobster&family=Alice&family=PT+Sans:wght@700&display=swap');
         
         body { 
-            background-color: #0a0a0a; /* Темный фон Preline */
+            background-color: #0a0a0a;
             color: #d4d4d4; 
             overflow: hidden; 
             font-family: 'Inter', sans-serif;
         }
         
-        /* Кастомный Preline Скроллбар */
+        /* Preline Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background-color: #404040; border-radius: 10px; }
@@ -61,7 +62,8 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
         
-        const socket = typeof io !== 'undefined' ? io() : { emit: ()=>{}, on: ()=>{}, off: ()=>{} }; // Fallback for preview
+        // Mock socket for local preview if missing
+        const socket = typeof io !== 'undefined' ? io() : { emit: ()=>{}, on: ()=>{}, off: ()=>{} }; 
 
         const supabaseUrl = 'https://lqjagftaeejdufwwvjwd.supabase.co';
         const supabaseKey = 'sb_publishable_6-9IBhMX9CMVbIackZAJ9g_UUk5FDqx'; 
@@ -76,30 +78,26 @@
             } catch (err) { }
         });
 
-        // Универсальный Toggle (Переключатель) в стиле Preline
-        const Toggle = ({ checked, onChange, label, subtext }) => (
-            <label className="flex items-center justify-between cursor-pointer w-full p-4 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-neutral-800 dark:border-neutral-700">
-                <div className="flex flex-col">
-                    <span className="text-sm text-gray-800 font-semibold dark:text-neutral-200">{label}</span>
-                    {subtext && <span className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5">{subtext}</span>}
-                </div>
-                <div className="relative inline-block">
-                    <input type="checkbox" className="peer sr-only" checked={checked} onChange={onChange} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
-                </div>
+        
+        // Надежный React-компонент переключателя для решения багов с булевыми значениями
+        const Switch = ({ checked, onChange, disabled = false }) => (
+            <label className={`relative inline-flex items-center shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input type="checkbox" className="sr-only peer" checked={checked} onChange={(e) => onChange(e.target.checked)} disabled={disabled} />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
             </label>
         );
 
-        // Универсальный Input в стиле Preline
-        const Input = ({ type = "text", value, onChange, placeholder, className = "" }) => (
+        // Preline Input
+        const Input = ({ type = "text", value, onChange, placeholder, className = "", required = false, title = "" }) => (
             <input 
-                type={type} value={value} onChange={onChange} placeholder={placeholder} 
-                className={`py-3 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400 dark:placeholder-neutral-500 dark:focus:ring-neutral-600 ${className}`} 
+                type={type} value={value} onChange={onChange} placeholder={placeholder} required={required} title={title}
+                className={`py-2.5 px-4 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:placeholder-neutral-500 dark:focus:ring-neutral-600 ${className}`} 
             />
         );
 
         function GiftModal({ isOpen, onClose, onSelect }) {
             const [gifts, setGifts] = useState([]); const [search, setSearch] = useState(''); const [isLoading, setIsLoading] = useState(false);
+            
             useEffect(() => {
                 if (!isOpen) return; setIsLoading(true);
                 supabase.from('gift_library').select('*').then(({ data }) => { 
@@ -118,9 +116,9 @@
 
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 z-[80] bg-gray-900 bg-opacity-60 backdrop-blur-sm transition-all flex items-center justify-center p-4">
-                    <div className="bg-white border shadow-sm rounded-xl dark:bg-neutral-800 dark:border-neutral-700 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-fade-in-up">
-                        <div className="flex justify-between items-center py-4 px-5 border-b dark:border-neutral-700">
+                <div className="fixed inset-0 z-[80] bg-gray-900/60 backdrop-blur-sm transition-all flex items-center justify-center p-4">
+                    <div className="bg-white border shadow-xl rounded-2xl dark:bg-neutral-800 dark:border-neutral-700 w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-fade-in-up">
+                        <div className="flex justify-between items-center py-4 px-6 border-b dark:border-neutral-700">
                             <h3 className="font-bold text-gray-800 dark:text-white text-lg">Библиотека подарков</h3>
                             <button onClick={onClose} className="w-8 h-8 flex justify-center items-center rounded-lg text-gray-500 hover:bg-gray-100 focus:outline-none dark:hover:bg-neutral-700 dark:text-neutral-400">
                                 <i className="fa-solid fa-xmark"></i>
@@ -131,11 +129,11 @@
                                 <div className="absolute inset-y-0 start-0 flex items-center pointer-events-none z-20 ps-4">
                                     <i className="fa-solid fa-magnifying-glass text-gray-400"></i>
                                 </div>
-                                <input type="text" placeholder="Поиск подарка..." value={search} onChange={e => setSearch(e.target.value)} className="py-3 px-4 ps-11 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400" />
+                                <input type="text" placeholder="Поиск подарка..." value={search} onChange={e => setSearch(e.target.value)} className="py-3 px-4 ps-11 block w-full border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 outline-none" />
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                            {isLoading ? <div className="col-span-full flex justify-center py-10"><div className="animate-spin inline-block size-6 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status" aria-label="loading"></div></div> : 
+                            {isLoading ? <div className="col-span-full flex justify-center py-10"><div className="animate-spin inline-block size-6 border-[3px] border-current border-t-transparent text-blue-600 rounded-full"></div></div> : 
                             gifts.filter(g => (g.name || '').toLowerCase().includes(search.toLowerCase())).map((g, idx) => (
                                 <div key={idx} onClick={() => { onSelect(g); onClose(); setSearch(''); }} className="cursor-pointer bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center hover:shadow-md hover:border-blue-500 transition-all dark:bg-neutral-900 dark:border-neutral-700 dark:hover:border-blue-500 group">
                                     <img src={g.icon} alt={g.name} className="w-12 h-12 object-contain mb-2 group-hover:scale-110 transition-transform" />
@@ -185,28 +183,19 @@
                             </div>
                         )}
 
-                        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 dark:text-white">Email адрес</label>
-                                    <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-2 dark:text-white">Пароль</label>
-                                    <Input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-                                </div>
+                                <div><label className="block text-sm font-medium mb-2 dark:text-white">Email адрес</label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                                <div><label className="block text-sm font-medium mb-2 dark:text-white">Пароль</label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></div>
                                 {!isLogin && (
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2 dark:text-white">Подтверждение пароля</label>
-                                        <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
-                                    </div>
+                                    <div><label className="block text-sm font-medium mb-2 dark:text-white">Подтверждение пароля</label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></div>
                                 )}
                             </div>
-                            <button type="submit" disabled={loading} className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none">
+                            <button type="submit" disabled={loading} className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none transition">
                                 {loading ? <div className="animate-spin inline-block size-4 border-[2px] border-current border-t-transparent text-white rounded-full"></div> : (isLogin ? 'Войти' : 'Зарегистрироваться')}
                             </button>
                         </form>
-                        <div className="text-center">
+                        <div className="text-center mt-6">
                             <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-sm text-blue-600 decoration-2 hover:underline font-medium dark:text-blue-500">
                                 {isLogin ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войти'}
                             </button>
@@ -257,7 +246,7 @@
                             <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 mb-4" ref={qrRef}></div>
                             <div className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 dark:bg-neutral-900/50 dark:border-neutral-700">
                                 <span className="block text-xs text-gray-500 dark:text-neutral-400 mb-1 uppercase tracking-wider font-semibold">Сумма к оплате</span>
-                                <span className="block text-2xl font-bold text-green-600 dark:text-green-500 font-mono">{amount} USDT</span>
+                                <span className="block text-2xl font-bold text-emerald-600 dark:text-emerald-500 font-mono">{amount} USDT</span>
                                 <span className="block text-[10px] text-red-500 mt-1 font-medium">*Переведите ТОЧНО эту сумму!</span>
                             </div>
                             <a href={`ton://transfer/${wallet}?amount=${amount * 1000000000}&text=TikTimer`} className="w-full mb-3 py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-[#3390ec] text-white hover:bg-[#2a7bcf]">
@@ -283,12 +272,12 @@
                     <div className="max-w-4xl w-full bg-white border border-gray-200 rounded-2xl shadow-sm dark:bg-neutral-800 dark:border-neutral-700 flex flex-col md:flex-row overflow-hidden">
                         <div className="w-full md:w-1/2 p-8 md:p-12 border-b md:border-b-0 md:border-e border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50 flex flex-col justify-between">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Получите полный доступ к <span className="text-blue-600 dark:text-blue-500">PRO версии</span></h1>
+                                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Полный доступ к <span className="text-blue-600 dark:text-blue-500">PRO версии</span></h1>
                                 <ul className="space-y-4 text-sm text-gray-600 dark:text-neutral-400">
                                     <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Неограниченное время работы сессий</li>
                                     <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Интерактивная рулетка времени и призов</li>
                                     <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Кастомные триггеры для любых подарков</li>
-                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Поддержка DonationAlerts, DonatePay, DonateX</li>
+                                    <li className="flex gap-x-3"><i className="fa-solid fa-check text-blue-600 mt-0.5"></i> Поддержка DonationAlerts и DonatePay</li>
                                 </ul>
                             </div>
                             <div className="mt-10 border-t border-gray-200 dark:border-neutral-700 pt-6 flex justify-between items-center text-sm">
@@ -358,8 +347,13 @@
                 setSavedConfig(config); 
                 socket.emit('update-settings', formatPayload(config)); 
             };
+            const handleCancel = () => setConfig(savedConfig);
+            const setCfgStyle = (key, val) => setConfig(p => ({...p, styles: {...p.styles, [key]: val}}));
             
-            const openRemoteWindow = () => window.open(`${window.location.origin}/remote.html?uid=${user.id}`, 'TikTimerRemote', 'width=1100,height=750,resizable=yes,scrollbars=no');
+            const openRemoteWindow = () => {
+                const width = 1100, height = 750, left = (window.screen.width / 2) - (width / 2), top = (window.screen.height / 2) - (height / 2);
+                window.open(`${window.location.origin}/remote.html?uid=${user.id}`, 'TikTimerRemote', `width=${width},height=${height},left=${left},top=${top},resizable=yes`);
+            };
 
             const TabBtn = ({ id, icon, text }) => (
                 <li>
@@ -374,7 +368,7 @@
             return (
                 <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-[#0a0a0a]" style={{ fontFamily: config.styles?.fontFamily || 'Inter' }}>
                     
-                    {/* Preline Sidebar */}
+                    {}
                     <div className="w-[260px] bg-white border-e border-gray-200 dark:bg-neutral-900 dark:border-neutral-800 flex flex-col z-[60] h-full shadow-sm shrink-0">
                         <div className="px-6 py-5 border-b border-gray-200 dark:border-neutral-800 flex flex-col gap-4">
                             <div className="flex items-center gap-x-3">
@@ -405,30 +399,30 @@
                         </nav>
                         
                         <div className="p-4 border-t border-gray-200 dark:border-neutral-800 space-y-3" style={{ fontFamily: 'Inter' }}>
-                            <button onClick={() => setShowRenew(true)} className="w-full py-2 px-3 inline-flex justify-center items-center gap-x-2 text-xs font-semibold rounded-lg border border-transparent bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50 disabled:pointer-events-none dark:hover:bg-blue-900 dark:text-blue-400 dark:bg-blue-800/30">
+                            <button onClick={() => setShowRenew(true)} className="w-full py-2 px-3 inline-flex justify-center items-center gap-x-2 text-xs font-semibold rounded-lg border border-transparent bg-blue-100 text-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900 dark:text-blue-400 dark:bg-blue-800/30 transition">
                                 Продлить подписку
                             </button>
                             {isRunning ? (
-                                <button onClick={() => socket.emit('stop-timer')} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-red-600 text-white hover:bg-red-700 shadow-sm">
+                                <button onClick={() => socket.emit('stop-timer')} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-red-600 text-white hover:bg-red-700 shadow-sm transition">
                                     <i className="fa-solid fa-stop"></i> Стоп
                                 </button>
                             ) : (
-                                <button onClick={() => { if(hasChanges) return; socket.emit('start-timer', formatPayload(config)); }} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 shadow-sm">
+                                <button onClick={() => { if(hasChanges) return; socket.emit('start-timer', formatPayload(config)); }} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition">
                                     <i className="fa-solid fa-play"></i> Запуск
                                 </button>
                             )}
-                            <button onClick={openRemoteWindow} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700">
+                            <button onClick={openRemoteWindow} className="w-full py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 transition">
                                 <i className="fa-solid fa-up-right-from-square"></i> Пульт
                             </button>
                             <button onClick={onLogout} className="w-full text-center mt-2 text-xs text-gray-500 hover:text-red-500 dark:text-neutral-500 dark:hover:text-red-400 transition">Выйти из аккаунта</button>
                         </div>
                     </div>
 
-                    {/* Preline Main Content Area */}
+                    {}
                     <div className="flex-1 overflow-y-auto h-full pb-20 custom-scrollbar relative">
                         <div className="max-w-5xl mx-auto p-6 sm:p-8 space-y-6">
                             
-                            {}
+                            {/* Connect Tab */}
                             {activeTab === 'connect' && (
                                 <div className="space-y-4 animate-fade-in-up">
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Подключения платформ</h2>
@@ -440,7 +434,7 @@
                                             <div className="flex-1 flex flex-col sm:flex-row gap-3" style={{ fontFamily: 'Inter' }}>
                                                 {!status.tt.isActive && <><Input value={config.username} onChange={e=>setConfig({...config, username: e.target.value})} placeholder="@username" /><Input value={config.ttApiKey} onChange={e=>setConfig({...config, ttApiKey: e.target.value})} placeholder="API Key" /></>}
                                             </div>
-                                            <button onClick={() => { status.tt.isActive ? socket.emit('disconnect-tiktok') : socket.emit('connect-tiktok', { username: config.username, apiKey: config.ttApiKey }) }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.tt.isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900 dark:bg-white dark:text-neutral-800 dark:hover:bg-gray-200'}`} style={{ fontFamily: 'Inter' }}>{status.tt.isActive ? 'Отключить' : 'Подключить'}</button>
+                                            <button onClick={() => { status.tt.isActive ? socket.emit('disconnect-tiktok') : socket.emit('connect-tiktok', { username: config.username, apiKey: config.ttApiKey }) }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.tt.isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-800 hover:bg-gray-900 dark:bg-white dark:text-neutral-800 dark:hover:bg-gray-200'} transition`} style={{ fontFamily: 'Inter' }}>{status.tt.isActive ? 'Отключить' : 'Подключить'}</button>
                                         </div>
                                     </div>
 
@@ -449,7 +443,7 @@
                                             <div className="size-12 bg-orange-100 text-orange-600 flex items-center justify-center rounded-xl shrink-0 dark:bg-orange-500/10 dark:text-orange-500"><i className="fa-solid fa-shield-halved text-xl"></i></div>
                                             <div className="w-full sm:w-1/4 shrink-0"><h3 className="font-bold text-gray-800 dark:text-white">DonationAlerts</h3><span className={`text-xs font-medium ${status.da.includes('Успешно') ? 'text-teal-600 dark:text-teal-500' : 'text-gray-500'}`}>{status.da}</span></div>
                                             <div className="flex-1"></div>
-                                            <button onClick={() => { status.da.includes('Успешно') ? socket.emit('disconnect-da') : window.open(`https://www.donationalerts.com/oauth/authorize?client_id=12952&response_type=token&scope=oauth-user-show%20oauth-donation-subscribe&redirect_uri=${window.location.origin}/da-callback`, '_blank', 'width=500,height=700') }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.da.includes('Успешно') ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`} style={{ fontFamily: 'Inter' }}>{status.da.includes('Успешно') ? 'Отключить' : 'Авторизоваться'}</button>
+                                            <button onClick={() => { status.da.includes('Успешно') ? socket.emit('disconnect-da') : window.open(`https://www.donationalerts.com/oauth/authorize?client_id=12952&response_type=token&scope=oauth-user-show%20oauth-donation-subscribe&redirect_uri=${window.location.origin}/da-callback`, '_blank', 'width=500,height=700') }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.da.includes('Успешно') ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'} transition`} style={{ fontFamily: 'Inter' }}>{status.da.includes('Успешно') ? 'Отключить' : 'Авторизоваться'}</button>
                                         </div>
                                     </div>
 
@@ -458,7 +452,7 @@
                                             <div className="size-12 bg-blue-100 text-blue-600 flex items-center justify-center rounded-xl shrink-0 dark:bg-blue-500/10 dark:text-blue-500"><i className="fa-solid fa-wallet text-xl"></i></div>
                                             <div className="w-full sm:w-1/4 shrink-0"><h3 className="font-bold text-gray-800 dark:text-white">DonatePay</h3><span className={`text-xs font-medium ${status.dp.includes('Успешно') ? 'text-teal-600 dark:text-teal-500' : 'text-gray-500'}`}>{status.dp}</span></div>
                                             <div className="flex-1" style={{ fontFamily: 'Inter' }}>{!status.dp.includes('Успешно') && <Input value={config.dpApiKey} onChange={e=>setConfig({...config, dpApiKey: e.target.value})} placeholder="API Key" />}</div>
-                                            <button onClick={() => { status.dp.includes('Успешно') ? socket.emit('disconnect-dp') : socket.emit('connect-dp', config.dpApiKey) }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.dp.includes('Успешно') ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`} style={{ fontFamily: 'Inter' }}>{status.dp.includes('Успешно') ? 'Отключить' : 'Подключить'}</button>
+                                            <button onClick={() => { status.dp.includes('Успешно') ? socket.emit('disconnect-dp') : socket.emit('connect-dp', config.dpApiKey) }} className={`w-full sm:w-auto py-2.5 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent text-white ${status.dp.includes('Успешно') ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'} transition`} style={{ fontFamily: 'Inter' }}>{status.dp.includes('Успешно') ? 'Отключить' : 'Подключить'}</button>
                                         </div>
                                     </div>
                                 </div>
@@ -470,62 +464,47 @@
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Настройки Времени</h2>
                                     
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                        <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 space-y-4">
+                                        <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 space-y-5">
                                             <div>
                                                 <label className="block text-sm font-medium mb-2 dark:text-white">Начальное время (мин)</label>
-                                                <input type="number" value={config.initialTime} onChange={e => setConfig({...config, initialTime: Number(e.target.value)})} className="py-4 px-4 block w-full border-gray-200 rounded-lg text-2xl font-bold text-center focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" style={{ fontFamily: 'Inter' }} />
+                                                <input type="number" value={config.initialTime} onChange={e => setConfig({...config, initialTime: Number(e.target.value)})} className="py-4 px-4 block w-full border-gray-200 rounded-xl text-2xl font-bold text-center focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white outline-none" style={{ fontFamily: 'Inter' }} />
                                             </div>
                                             
-                                            <div className="pt-4 border-t border-gray-200 dark:border-neutral-800 space-y-4">
+                                            <div className="pt-5 border-t border-gray-200 dark:border-neutral-800 space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-sm font-semibold text-gray-800 dark:text-neutral-200">Бонус при обнулении таймера</span>
-                                                    <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, bonusEnabled: !config.bonusEnabled})}>
-                                                        <input type="checkbox" className="peer sr-only" checked={config.bonusEnabled} readOnly />
-                                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
-                                                    </div>
+                                                    <Switch checked={config.bonusEnabled} onChange={(val) => setConfig({...config, bonusEnabled: val})} />
                                                 </div>
-                                                <div className={`grid grid-cols-2 gap-4 ${!config.bonusEnabled ? 'opacity-50 pointer-events-none' : ''}`} style={{ fontFamily: 'Inter' }}>
-                                                    <div><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Мин. (сек)</label><Input type="number" value={config.bonusMin} onChange={e => setConfig({...config, bonusMin: Number(e.target.value)})} /></div>
-                                                    <div><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Макс. (сек)</label><Input type="number" value={config.bonusMax} onChange={e => setConfig({...config, bonusMax: Number(e.target.value)})} /></div>
+                                                <div className={`grid grid-cols-2 gap-4 transition-opacity ${!config.bonusEnabled ? 'opacity-40 pointer-events-none' : ''}`} style={{ fontFamily: 'Inter' }}>
+                                                    <div><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1 font-medium">Минимум (сек)</label><Input type="number" value={config.bonusMin} onChange={e => setConfig({...config, bonusMin: Number(e.target.value)})} /></div>
+                                                    <div><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1 font-medium">Максимум (сек)</label><Input type="number" value={config.bonusMax} onChange={e => setConfig({...config, bonusMax: Number(e.target.value)})} /></div>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="flex flex-col space-y-4">
-                                            {/* Лайки Card */}
-                                            <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 dark:border-neutral-800 flex items-center justify-between gap-4">
+                                            <div className={`bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 transition-colors flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 ${config.likesEnabled ? 'dark:border-teal-500/50' : 'dark:border-neutral-800'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, likesEnabled: !config.likesEnabled})}>
-                                                        <input type="checkbox" className="peer sr-only" checked={config.likesEnabled} readOnly />
-                                                        <div className="w-9 h-5 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-teal-500"></div>
-                                                    </div>
-                                                    <div className="flex items-center text-sm font-medium text-gray-800 dark:text-neutral-200">За <input type="number" value={config.likeThreshold} onChange={e => setConfig({...config, likeThreshold: Number(e.target.value)})} className="w-14 mx-2 py-1 px-2 border-gray-200 rounded-md text-center text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" style={{ fontFamily: 'Inter' }} /> лайков</div>
+                                                    <Switch checked={config.likesEnabled} onChange={(val) => setConfig({...config, likesEnabled: val})} />
+                                                    <div className="flex items-center text-sm font-medium text-gray-800 dark:text-neutral-200">За <input type="number" value={config.likeThreshold} onChange={e => setConfig({...config, likeThreshold: Number(e.target.value)})} className="w-16 mx-2 py-1.5 px-2 border-gray-200 rounded-lg text-center text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white outline-none" style={{ fontFamily: 'Inter' }} /> лайков</div>
                                                 </div>
-                                                <div className="flex items-center"><input type="number" value={config.likeTime} onChange={e => setConfig({...config, likeTime: Number(e.target.value)})} className="w-16 py-1 px-2 border-gray-200 rounded-md text-center text-sm font-bold text-teal-600 dark:text-teal-400 dark:bg-neutral-800 dark:border-neutral-700 focus:border-teal-500 focus:ring-teal-500" style={{ fontFamily: 'Inter' }} /><span className="text-gray-500 dark:text-neutral-500 text-xs ml-2">СЕК</span></div>
+                                                <div className="flex items-center"><input type="number" value={config.likeTime} onChange={e => setConfig({...config, likeTime: Number(e.target.value)})} className="w-16 py-1.5 px-2 border-gray-200 rounded-lg text-center text-sm font-bold text-teal-600 dark:text-teal-400 dark:bg-neutral-800 dark:border-neutral-700 outline-none" style={{ fontFamily: 'Inter' }} /><span className="text-gray-500 dark:text-neutral-500 text-xs font-bold ml-2">СЕК</span></div>
                                             </div>
 
-                                            {/* Рулетка за лайки */}
-                                            <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 dark:border-neutral-800 flex items-center justify-between gap-4">
+                                            <div className={`bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 transition-colors flex items-center justify-between gap-4 ${config.likesRouletteEnabled ? 'dark:border-purple-500/50' : 'dark:border-neutral-800'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, likesRouletteEnabled: !config.likesRouletteEnabled})}>
-                                                        <input type="checkbox" className="peer sr-only" checked={config.likesRouletteEnabled} readOnly />
-                                                        <div className="w-9 h-5 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-purple-500"></div>
-                                                    </div>
+                                                    <Switch checked={config.likesRouletteEnabled} onChange={(val) => setConfig({...config, likesRouletteEnabled: val})} />
                                                     <span className="text-sm font-medium text-gray-800 dark:text-neutral-200">Рулетка за общие лайки</span>
                                                 </div>
-                                                <input type="number" value={config.likesRouletteThreshold} onChange={e => setConfig({...config, likesRouletteThreshold: Number(e.target.value)})} className="w-24 py-1 px-2 border-gray-200 rounded-md text-center text-sm font-bold text-purple-600 dark:text-purple-400 dark:bg-neutral-800 dark:border-neutral-700 focus:border-purple-500 focus:ring-purple-500" style={{ fontFamily: 'Inter' }} />
+                                                <input type="number" value={config.likesRouletteThreshold} onChange={e => setConfig({...config, likesRouletteThreshold: Number(e.target.value)})} className="w-24 py-1.5 px-2 border-gray-200 rounded-lg text-center text-sm font-bold text-purple-600 dark:text-purple-400 dark:bg-neutral-800 dark:border-neutral-700 outline-none" style={{ fontFamily: 'Inter' }} />
                                             </div>
 
-                                            {/* Подписки */}
-                                            <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 dark:border-neutral-800 flex items-center justify-between gap-4">
+                                            <div className={`bg-white border border-gray-200 shadow-sm rounded-xl p-4 dark:bg-neutral-900 transition-colors flex items-center justify-between gap-4 ${config.subsEnabled ? 'dark:border-teal-500/50' : 'dark:border-neutral-800'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, subsEnabled: !config.subsEnabled})}>
-                                                        <input type="checkbox" className="peer sr-only" checked={config.subsEnabled} readOnly />
-                                                        <div className="w-9 h-5 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-teal-500"></div>
-                                                    </div>
+                                                    <Switch checked={config.subsEnabled} onChange={(val) => setConfig({...config, subsEnabled: val})} />
                                                     <span className="text-sm font-medium text-gray-800 dark:text-neutral-200">Новый Подписчик</span>
                                                 </div>
-                                                <div className="flex items-center"><input type="number" value={config.subTime} onChange={e => setConfig({...config, subTime: Number(e.target.value)})} className="w-16 py-1 px-2 border-gray-200 rounded-md text-center text-sm font-bold text-teal-600 dark:text-teal-400 dark:bg-neutral-800 dark:border-neutral-700 focus:border-teal-500 focus:ring-teal-500" style={{ fontFamily: 'Inter' }} /><span className="text-gray-500 dark:text-neutral-500 text-xs ml-2">СЕК</span></div>
+                                                <div className="flex items-center"><input type="number" value={config.subTime} onChange={e => setConfig({...config, subTime: Number(e.target.value)})} className="w-16 py-1.5 px-2 border-gray-200 rounded-lg text-center text-sm font-bold text-teal-600 dark:text-teal-400 dark:bg-neutral-800 dark:border-neutral-700 outline-none" style={{ fontFamily: 'Inter' }} /><span className="text-gray-500 dark:text-neutral-500 text-xs font-bold ml-2">СЕК</span></div>
                                             </div>
                                         </div>
                                     </div>
@@ -538,42 +517,36 @@
                                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">Спец. Подарки и Триггеры</h2>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 dark:bg-neutral-900 dark:border-neutral-800">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <div className="flex items-center gap-2"><i className="fa-solid fa-rocket text-amber-500"></i><h3 className="font-bold text-gray-800 dark:text-white">Бафф (Умножение)</h3></div>
-                                                <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, isMultiplierGiftEnabled: !config.isMultiplierGiftEnabled})}>
-                                                    <input type="checkbox" className="peer sr-only" checked={config.isMultiplierGiftEnabled} readOnly />
-                                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-amber-500"></div>
-                                                </div>
+                                        <div className={`flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 transition-colors ${config.isMultiplierGiftEnabled ? 'dark:border-amber-500/50' : 'dark:border-neutral-800'}`}>
+                                            <div className="flex justify-between items-center mb-5">
+                                                <div className="flex items-center gap-2"><i className="fa-solid fa-rocket text-amber-500 text-lg"></i><h3 className="font-bold text-gray-800 dark:text-white">Бафф (Умножение)</h3></div>
+                                                <Switch checked={config.isMultiplierGiftEnabled} onChange={(val) => setConfig({...config, isMultiplierGiftEnabled: val})} />
                                             </div>
-                                            <div className={`space-y-4 ${!config.isMultiplierGiftEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50">
+                                            <div className={`space-y-4 transition-opacity ${!config.isMultiplierGiftEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                                                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl dark:border-neutral-700 bg-gray-50 dark:bg-neutral-950">
                                                     {config.giftMultiplier ? <div className="flex items-center gap-3"><img src={config.giftMultiplier.icon} className="w-8 h-8"/> <span className="font-semibold text-sm dark:text-white">{config.giftMultiplier.name}</span></div> : <span className="text-gray-500 text-sm">Триггер не выбран</span>}
-                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftMultiplier' })} className="py-1 px-3 text-xs font-semibold rounded-lg bg-white border border-gray-200 text-gray-800 hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700" style={{ fontFamily: 'Inter' }}>Изменить</button>
+                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftMultiplier' })} className="py-1.5 px-3 text-xs font-semibold rounded-lg bg-white border border-gray-200 text-gray-800 hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 transition" style={{ fontFamily: 'Inter' }}>Изменить</button>
                                                 </div>
                                                 <div className="flex gap-4" style={{ fontFamily: 'Inter' }}>
-                                                    <div className="flex-1"><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Множитель</label><div className="flex rounded-lg shadow-sm"><span className="px-3 py-2 inline-flex items-center min-w-fit border border-e-0 border-gray-200 bg-gray-50 text-sm text-gray-500 rounded-s-lg dark:bg-neutral-700 dark:border-neutral-700 dark:text-neutral-400">x</span><Input type="number" value={config.multiplierValue} onChange={e=>setConfig({...config, multiplierValue: Number(e.target.value)})} className="rounded-s-none" /></div></div>
-                                                    <div className="flex-1"><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Длительность</label><div className="flex rounded-lg shadow-sm"><Input type="number" value={config.multiplierDuration} onChange={e=>setConfig({...config, multiplierDuration: Number(e.target.value)})} className="rounded-e-none" /><span className="px-3 py-2 inline-flex items-center min-w-fit border border-s-0 border-gray-200 bg-gray-50 text-sm text-gray-500 rounded-e-lg dark:bg-neutral-700 dark:border-neutral-700 dark:text-neutral-400">сек</span></div></div>
+                                                    <div className="flex-1"><label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Множитель</label><div className="flex rounded-lg shadow-sm"><span className="px-3 py-2 inline-flex items-center border border-e-0 border-gray-200 bg-gray-50 text-sm font-bold text-amber-500 rounded-s-lg dark:bg-neutral-800 dark:border-neutral-700">x</span><Input type="number" value={config.multiplierValue} onChange={e=>setConfig({...config, multiplierValue: Number(e.target.value)})} className="rounded-s-none font-bold" /></div></div>
+                                                    <div className="flex-1"><label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Длительность</label><div className="flex rounded-lg shadow-sm"><Input type="number" value={config.multiplierDuration} onChange={e=>setConfig({...config, multiplierDuration: Number(e.target.value)})} className="rounded-e-none font-bold" /><span className="px-3 py-2 inline-flex items-center border border-s-0 border-gray-200 bg-gray-50 text-xs font-bold text-gray-500 rounded-e-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-400">СЕК</span></div></div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 dark:bg-neutral-900 dark:border-neutral-800">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <div className="flex items-center gap-2"><i className="fa-solid fa-snowflake text-indigo-500"></i><h3 className="font-bold text-gray-800 dark:text-white">Дебафф (Деление)</h3></div>
-                                                <div className="relative inline-block cursor-pointer" onClick={() => setConfig({...config, isDebuffGiftEnabled: !config.isDebuffGiftEnabled})}>
-                                                    <input type="checkbox" className="peer sr-only" checked={config.isDebuffGiftEnabled} readOnly />
-                                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-indigo-500"></div>
-                                                </div>
+                                        <div className={`flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 transition-colors ${config.isDebuffGiftEnabled ? 'dark:border-indigo-500/50' : 'dark:border-neutral-800'}`}>
+                                            <div className="flex justify-between items-center mb-5">
+                                                <div className="flex items-center gap-2"><i className="fa-solid fa-snowflake text-indigo-500 text-lg"></i><h3 className="font-bold text-gray-800 dark:text-white">Дебафф (Деление)</h3></div>
+                                                <Switch checked={config.isDebuffGiftEnabled} onChange={(val) => setConfig({...config, isDebuffGiftEnabled: val})} />
                                             </div>
-                                            <div className={`space-y-4 ${!config.isDebuffGiftEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800/50">
+                                            <div className={`space-y-4 transition-opacity ${!config.isDebuffGiftEnabled ? 'opacity-40 pointer-events-none' : ''}`}>
+                                                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl dark:border-neutral-700 bg-gray-50 dark:bg-neutral-950">
                                                     {config.giftDebuff ? <div className="flex items-center gap-3"><img src={config.giftDebuff.icon} className="w-8 h-8"/> <span className="font-semibold text-sm dark:text-white">{config.giftDebuff.name}</span></div> : <span className="text-gray-500 text-sm">Триггер не выбран</span>}
-                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftDebuff' })} className="py-1 px-3 text-xs font-semibold rounded-lg bg-white border border-gray-200 text-gray-800 hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700" style={{ fontFamily: 'Inter' }}>Изменить</button>
+                                                    <button onClick={() => setModal({ isOpen: true, key: 'giftDebuff' })} className="py-1.5 px-3 text-xs font-semibold rounded-lg bg-white border border-gray-200 text-gray-800 hover:bg-gray-50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-700 transition" style={{ fontFamily: 'Inter' }}>Изменить</button>
                                                 </div>
                                                 <div className="flex gap-4" style={{ fontFamily: 'Inter' }}>
-                                                    <div className="flex-1"><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Делитель</label><div className="flex rounded-lg shadow-sm"><span className="px-3 py-2 inline-flex items-center min-w-fit border border-e-0 border-gray-200 bg-gray-50 text-sm text-gray-500 rounded-s-lg dark:bg-neutral-700 dark:border-neutral-700 dark:text-neutral-400">/</span><Input type="number" value={config.debuffValue} onChange={e=>setConfig({...config, debuffValue: Number(e.target.value)})} className="rounded-s-none" /></div></div>
-                                                    <div className="flex-1"><label className="block text-xs text-gray-500 dark:text-neutral-400 mb-1">Длительность</label><div className="flex rounded-lg shadow-sm"><Input type="number" value={config.debuffDuration} onChange={e=>setConfig({...config, debuffDuration: Number(e.target.value)})} className="rounded-e-none" /><span className="px-3 py-2 inline-flex items-center min-w-fit border border-s-0 border-gray-200 bg-gray-50 text-sm text-gray-500 rounded-e-lg dark:bg-neutral-700 dark:border-neutral-700 dark:text-neutral-400">сек</span></div></div>
+                                                    <div className="flex-1"><label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Делитель</label><div className="flex rounded-lg shadow-sm"><span className="px-3 py-2 inline-flex items-center border border-e-0 border-gray-200 bg-gray-50 text-sm font-bold text-indigo-500 rounded-s-lg dark:bg-neutral-800 dark:border-neutral-700">/</span><Input type="number" value={config.debuffValue} onChange={e=>setConfig({...config, debuffValue: Number(e.target.value)})} className="rounded-s-none font-bold" /></div></div>
+                                                    <div className="flex-1"><label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Длительность</label><div className="flex rounded-lg shadow-sm"><Input type="number" value={config.debuffDuration} onChange={e=>setConfig({...config, debuffDuration: Number(e.target.value)})} className="rounded-e-none font-bold" /><span className="px-3 py-2 inline-flex items-center border border-s-0 border-gray-200 bg-gray-50 text-xs font-bold text-gray-500 rounded-e-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-400">СЕК</span></div></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -581,28 +554,26 @@
 
                                     <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 md:p-6 dark:bg-neutral-900 dark:border-neutral-800">
                                         <div className="flex justify-between items-center mb-6">
-                                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">Кастомные триггеры подарков</h3>
-                                            <button onClick={() => setConfig({...config, customGifts: [...config.customGifts, { id: Date.now().toString(), gift: null, type: 'add', value: 60, threshold: 0, isEnabled: true }]})} className="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700" style={{ fontFamily: 'Inter' }}>
+                                            <h3 className="text-lg font-bold text-gray-800 dark:text-white"><i className="fa-solid fa-list-check text-blue-500 mr-2"></i>Кастомные триггеры подарков</h3>
+                                            <button onClick={() => setConfig({...config, customGifts: [...config.customGifts, { id: Date.now().toString(), gift: null, type: 'add', value: 60, threshold: 0, isEnabled: true }]})} className="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 transition" style={{ fontFamily: 'Inter' }}>
                                                 <i className="fa-solid fa-plus"></i> Добавить
                                             </button>
                                         </div>
                                         
                                         <div className="space-y-3">
-                                            {config.customGifts.length === 0 && <div className="text-center py-6 text-sm text-gray-500 dark:text-neutral-400">Нет активных кастомных триггеров</div>}
+                                            {config.customGifts.length === 0 && <div className="text-center py-6 text-sm text-gray-500 dark:text-neutral-500">Нет активных кастомных триггеров</div>}
                                             {config.customGifts.map(cg => (
-                                                <div key={cg.id} className={`flex flex-col sm:flex-row gap-3 sm:items-center p-4 border rounded-xl transition-colors ${cg.isEnabled ? 'bg-white border-gray-200 dark:bg-neutral-800 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-70 dark:bg-neutral-800/50 dark:border-neutral-800'}`}>
+                                                <div key={cg.id} className={`flex flex-col sm:flex-row gap-3 sm:items-center p-3 border rounded-xl transition-colors ${cg.isEnabled ? 'bg-white border-gray-200 dark:bg-neutral-950 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-60 dark:bg-neutral-900 dark:border-neutral-800'}`}>
                                                     
-                                                    <div className="relative inline-block cursor-pointer shrink-0" onClick={() => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, isEnabled: !c.isEnabled}:c)}))}>
-                                                        <input type="checkbox" className="peer sr-only" checked={cg.isEnabled} readOnly />
-                                                        <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
-                                                    </div>
+                                                    {/* Proper Toggle for List item */}
+                                                    <Switch checked={cg.isEnabled} onChange={(val) => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, isEnabled: val}:c)}))} />
                                                     
-                                                    <div className="flex-1 flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:border-neutral-700 dark:hover:bg-neutral-800 transition" onClick={() => setModal({ isOpen: true, key: `custom_${cg.id}` })}>
-                                                        {cg.gift ? <><img src={cg.gift.icon} className="w-6 h-6"/> <span className="font-semibold text-sm text-gray-800 dark:text-white truncate">{cg.gift.name}</span></> : <span className="text-sm text-gray-500 dark:text-neutral-400 px-2 font-medium">Кликните, чтобы выбрать подарок...</span>}
+                                                    <div className="flex-1 flex items-center gap-2 p-2.5 border border-gray-200 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:bg-neutral-900 dark:border-neutral-700 dark:hover:bg-neutral-800 transition" onClick={() => setModal({ isOpen: true, key: `custom_${cg.id}` })}>
+                                                        {cg.gift ? <><img src={cg.gift.icon} className="w-6 h-6"/> <span className="font-semibold text-sm text-gray-800 dark:text-white truncate">{cg.gift.name}</span></> : <span className="text-sm text-gray-500 dark:text-neutral-400 px-2 font-medium">Выбрать подарок...</span>}
                                                     </div>
                                                     
                                                     <div className="flex gap-2" style={{ fontFamily: 'Inter' }}>
-                                                        <select value={cg.type} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, type: e.target.value}:c)}))} className="py-2 px-3 block w-auto border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400 font-medium">
+                                                        <select value={cg.type} onChange={e => setConfig(p=>({...p, customGifts: p.customGifts.map(c=>c.id===cg.id?{...c, type: e.target.value}:c)}))} className="py-2.5 px-3 block w-auto border-gray-200 rounded-lg text-sm font-semibold focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 outline-none">
                                                             <option value="add">+ Время</option>
                                                             <option value="sub">- Время</option>
                                                             <option value="sub_threshold">- До порога</option>
@@ -641,51 +612,55 @@
                                                 <h3 className="font-bold text-gray-800 dark:text-white text-lg">Подарок-Триггер</h3>
                                                 <p className="text-sm text-gray-500 dark:text-neutral-400">Подарок, запускающий колесо</p>
                                             </div>
-                                            <div className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-200 rounded-lg dark:bg-neutral-800 dark:border-neutral-700 w-full md:w-auto">
-                                                {config.giftRoulette ? <div className="flex items-center gap-3 px-2"><img src={config.giftRoulette.icon} className="size-8"/> <span className="font-semibold text-sm text-gray-800 dark:text-white">{config.giftRoulette.name}</span></div> : <span className="text-sm text-gray-500 px-3">Не выбран</span>}
-                                                <button onClick={() => setModal({ isOpen: true, key: 'giftRoulette' })} className="ml-auto py-2 px-3 inline-flex items-center gap-x-2 text-xs font-semibold rounded-md border border-transparent bg-blue-600 text-white hover:bg-blue-700" style={{ fontFamily: 'Inter' }}>Выбрать</button>
+                                            <div className="flex items-center gap-3 p-2 bg-gray-50 border border-gray-200 rounded-xl dark:bg-neutral-950 dark:border-neutral-700 w-full md:w-auto">
+                                                {config.giftRoulette ? <div className="flex items-center gap-3 px-3"><img src={config.giftRoulette.icon} className="size-8"/> <span className="font-semibold text-sm text-gray-800 dark:text-white">{config.giftRoulette.name}</span></div> : <span className="text-sm font-medium text-gray-500 px-4">Не выбран</span>}
+                                                <button onClick={() => setModal({ isOpen: true, key: 'giftRoulette' })} className="ml-auto py-2 px-4 inline-flex items-center gap-x-2 text-xs font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 transition" style={{ fontFamily: 'Inter' }}>Выбрать</button>
                                             </div>
                                         </div>
                                         
-                                        <Toggle checked={config.rouletteGiftAddsCost} onChange={() => setConfig({...config, rouletteGiftAddsCost: !config.rouletteGiftAddsCost})} label="Учитывать стоимость подарка" subtext="Если включено, стоимость триггер-подарка добавится ко времени до запуска рулетки" />
+                                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 dark:bg-neutral-800/50 dark:border-neutral-700 cursor-pointer" onClick={() => setConfig({...config, rouletteGiftAddsCost: !config.rouletteGiftAddsCost})}>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-gray-800 dark:text-neutral-200">Учитывать стоимость подарка</span>
+                                                <span className="text-xs text-gray-500 dark:text-neutral-400 mt-1">Добавляет стоимость триггер-подарка ко времени до запуска рулетки</span>
+                                            </div>
+                                            <Switch checked={config.rouletteGiftAddsCost} onChange={(val) => setConfig({...config, rouletteGiftAddsCost: val})} />
+                                        </div>
                                     </div>
 
                                     <div className="flex flex-col bg-white border border-gray-200 shadow-sm rounded-xl p-5 md:p-6 dark:bg-neutral-900 dark:border-neutral-800">
                                         <div className="flex justify-between items-center mb-6">
                                             <h3 className="text-lg font-bold text-gray-800 dark:text-white">Слоты колеса</h3>
-                                            <button onClick={() => setConfig({...config, rouletteSlots: [...config.rouletteSlots, { id: Date.now().toString(), label: 'Новый слот', type: 'add_time', value: 60, chance: 10, color: '#3b82f6', isEliminable: false, isEnabled: true }]})} className="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700" style={{ fontFamily: 'Inter' }}>
+                                            <button onClick={() => setConfig({...config, rouletteSlots: [...config.rouletteSlots, { id: Date.now().toString(), label: 'Новый слот', type: 'add_time', value: 60, chance: 10, color: '#3b82f6', isEliminable: false, isEnabled: true }]})} className="py-2 px-3 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 transition" style={{ fontFamily: 'Inter' }}>
                                                 <i className="fa-solid fa-plus"></i> Слот
                                             </button>
                                         </div>
                                         
                                         <div className="space-y-3">
                                             {config.rouletteSlots.map(slot => (
-                                                <div key={slot.id} className={`flex flex-wrap md:flex-nowrap gap-3 items-center p-3 border rounded-xl transition-colors ${slot.isEnabled !== false ? 'bg-white border-gray-200 dark:bg-neutral-800 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-60 dark:bg-neutral-800/50 dark:border-neutral-800'}`}>
+                                                <div key={slot.id} className={`flex flex-wrap md:flex-nowrap gap-3 items-center p-3 border rounded-xl transition-colors ${slot.isEnabled !== false ? 'bg-white border-gray-200 dark:bg-neutral-950 dark:border-neutral-700' : 'bg-gray-50 border-gray-100 opacity-60 dark:bg-neutral-900 dark:border-neutral-800'}`}>
                                                     
-                                                    <div className="relative inline-block cursor-pointer shrink-0" onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEnabled: s.isEnabled === false ? true : false}:s)}))}>
-                                                        <input type="checkbox" className="peer sr-only" checked={slot.isEnabled !== false} readOnly />
-                                                        <div className="w-9 h-5 bg-gray-200 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-teal-500"></div>
-                                                    </div>
+                                                    {/* Proper Toggle for List item */}
+                                                    <Switch checked={slot.isEnabled !== false} onChange={(val) => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEnabled: val}:s)}))} />
                                                     
-                                                    <input type="color" value={slot.color} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, color: e.target.value}:s)}))} className="size-8 rounded-lg border-0 bg-transparent cursor-pointer shrink-0" />
+                                                    <input type="color" value={slot.color} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, color: e.target.value}:s)}))} className="size-8 rounded border-none bg-transparent cursor-pointer shrink-0" />
                                                     
-                                                    <Input value={slot.label} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, label: e.target.value}:s)}))} className="flex-1 min-w-[150px] font-semibold" placeholder="Текст слота" />
+                                                    <Input value={slot.label} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, label: e.target.value}:s)}))} className="flex-1 min-w-[150px] font-bold border-b border-x-0 border-t-0 border-gray-200 rounded-none bg-transparent px-2 focus:ring-0 focus:border-blue-500 dark:border-neutral-700 dark:bg-transparent" placeholder="Текст слота" />
                                                     
                                                     <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto" style={{ fontFamily: 'Inter' }}>
-                                                        <select value={slot.type} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, type: e.target.value}:s)}))} className="py-2.5 px-3 w-full sm:w-auto block border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400 font-medium">
+                                                        <select value={slot.type} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, type: e.target.value}:s)}))} className="py-2.5 px-3 w-full sm:w-auto block border-gray-200 rounded-lg text-sm font-semibold focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-300 outline-none">
                                                             <option value="add_time">+ Время</option><option value="sub_time">- Время</option><option value="multiply_time">Умножить (*)</option><option value="divide_time">Разделить (/)</option><option value="set_time">= Время</option><option value="multiplier">Бафф x</option><option value="debuff">Дебафф x</option><option value="extra_spin">Еще прокрут</option><option value="reset_time">Сброс (0)</option><option value="special">Приз</option>
                                                         </select>
                                                         
                                                         {['multiply_time','divide_time','multiplier','debuff'].includes(slot.type) && <Input type="number" value={slot.multiplierValue||2} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, multiplierValue: Number(e.target.value)}:s)}))} className="w-16 text-center font-bold" placeholder="x" />}
                                                         {['add_time','sub_time','set_time','multiplier','debuff','extra_spin'].includes(slot.type) && <Input type="number" value={slot.value} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, value: Number(e.target.value)}:s)}))} className="w-20 text-center font-bold" placeholder="Знач." />}
                                                         
-                                                        <div className="flex items-center rounded-lg border border-gray-200 bg-white dark:bg-neutral-900 dark:border-neutral-700 w-24 px-2">
-                                                            <input type="number" value={slot.chance} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, chance: Number(e.target.value)}:s)}))} className="w-full bg-transparent border-0 text-sm font-bold text-center focus:ring-0 dark:text-white p-0" />
+                                                        <div className="flex items-center rounded-lg border border-gray-200 bg-white dark:bg-neutral-900 dark:border-neutral-700 w-20 px-2 overflow-hidden">
+                                                            <input type="number" value={slot.chance} onChange={e => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, chance: Number(e.target.value)}:s)}))} className="w-full bg-transparent border-none text-sm font-bold text-center focus:ring-0 dark:text-white p-1" />
                                                             <span className="text-gray-500 text-xs font-bold">%</span>
                                                         </div>
                                                         
-                                                        <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEliminable: !s.isEliminable}:s)}))} className={`py-2 px-3 text-xs font-semibold rounded-lg border transition ${slot.isEliminable ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-800/30 dark:text-blue-500 dark:border-blue-900' : 'bg-white text-gray-500 border-gray-200 dark:bg-neutral-900 dark:border-neutral-700'}`}>{slot.isEliminable ? 'ОДНОРАЗ.' : 'МНОГОР.'}</button>
-                                                        <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.filter(s=>s.id!==slot.id)}))} className="w-10 h-10 flex justify-center items-center text-gray-500 hover:text-red-500 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700"><i className="fa-solid fa-trash"></i></button>
+                                                        <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.map(s=>s.id===slot.id?{...s, isEliminable: !s.isEliminable}:s)}))} className={`py-2 px-3 text-xs font-bold rounded-lg border transition ${slot.isEliminable ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50' : 'bg-white text-gray-500 border-gray-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-700'}`}>{slot.isEliminable ? '1 РАЗ' : 'МНОГОР.'}</button>
+                                                        <button onClick={() => setConfig(p=>({...p, rouletteSlots: p.rouletteSlots.filter(s=>s.id!==slot.id)}))} className="w-10 h-10 flex justify-center items-center text-gray-500 hover:text-red-500 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:hover:bg-neutral-800 transition"><i className="fa-solid fa-trash"></i></button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -704,39 +679,46 @@
                                             <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-neutral-800 pb-3"><i className="fa-solid fa-font text-blue-500 mr-2"></i>Типографика и Таймер</h3>
                                             
                                             <div>
-                                                <label className="block text-sm font-medium mb-2 dark:text-white">Глобальный Шрифт</label>
-                                                <select value={config.styles.fontFamily} onChange={e=>setCfgStyle('fontFamily', e.target.value)} className="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm font-medium focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-900 dark:border-neutral-700 dark:text-white" style={{ fontFamily: 'Inter' }}>
+                                                <label className="block text-sm font-semibold mb-2 dark:text-white">Глобальный Шрифт (Таймер и Уведомления)</label>
+                                                <select value={config.styles.fontFamily} onChange={e=>setCfgStyle('fontFamily', e.target.value)} className="py-3 px-4 block w-full border-gray-200 rounded-lg text-sm font-bold focus:border-blue-500 focus:ring-blue-500 dark:bg-neutral-950 dark:border-neutral-700 dark:text-white outline-none" style={{ fontFamily: 'Inter' }}>
                                                     <option value="Inter">Inter (Современный)</option><option value="Bebas Neue">Bebas Neue (Жирный)</option><option value="Montserrat">Montserrat</option><option value="Comic Neue">Comic Neue</option><option value="Oswald">Oswald</option><option value="Pacifico">Pacifico</option><option value="Roboto">Roboto</option><option value="Open Sans">Open Sans</option><option value="Raleway">Raleway</option><option value="Nunito">Nunito</option><option value="Playfair Display">Playfair Display</option><option value="Caveat">Caveat</option><option value="Rubik">Rubik</option><option value="Comfortaa">Comfortaa</option><option value="Ruslan Display">Ruslan Display</option><option value="Kelly Slab">Kelly Slab</option><option value="Roboto Slab">Roboto Slab</option><option value="Lobster">Lobster</option><option value="Alice">Alice</option><option value="PT Sans">PT Sans</option>
                                                 </select>
+                                                <p className="text-xs text-gray-500 dark:text-neutral-500 mt-2">Применяется к интерфейсу для предпросмотра.</p>
                                             </div>
                                             
                                             <div className="flex items-center justify-between">
-                                                <label className="text-sm font-medium text-gray-800 dark:text-white">Цвет Таймера</label>
+                                                <label className="text-sm font-semibold text-gray-800 dark:text-white">Основной Цвет Таймера</label>
                                                 <input type="color" value={config.styles.timerColor} onChange={e=>setCfgStyle('timerColor', e.target.value)} className="p-0 size-10 block bg-white border border-gray-200 cursor-pointer rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700" />
                                             </div>
                                             
                                             <div>
-                                                <div className="flex justify-between mb-2"><label className="text-sm font-medium text-gray-800 dark:text-white">Сила свечения (Glow)</label><span className="text-sm font-bold text-gray-500 dark:text-neutral-400">{config.styles.timerGlow}</span></div>
+                                                <div className="flex justify-between mb-2"><label className="text-sm font-semibold text-gray-800 dark:text-white">Сила свечения (Glow)</label><span className="text-sm font-bold text-blue-600 dark:text-blue-500">{config.styles.timerGlow}</span></div>
                                                 <input type="range" min="0" max="1" step="0.1" value={config.styles.timerGlow} onChange={e=>setCfgStyle('timerGlow', parseFloat(e.target.value))} className="w-full bg-transparent cursor-pointer appearance-none disabled:opacity-50 disabled:pointer-events-none focus:outline-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-track]:w-full [&::-webkit-slider-track]:h-1 [&::-webkit-slider-track]:bg-gray-200 [&::-webkit-slider-track]:rounded-full dark:[&::-webkit-slider-track]:bg-neutral-700" />
                                             </div>
                                             
-                                            <Toggle checked={config.styles.enableStroke} onChange={() => setCfgStyle('enableStroke', !config.styles.enableStroke)} label="Черная обводка текста" subtext="Помогает читать белый текст на светлом фоне" />
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 dark:bg-neutral-800/50 dark:border-neutral-700 cursor-pointer" onClick={() => setCfgStyle('enableStroke', !config.styles.enableStroke)}>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-gray-800 dark:text-neutral-200">Черная обводка текста</span>
+                                                    <span className="text-xs text-gray-500 dark:text-neutral-400 mt-1">Помогает читать текст на светлом фоне</span>
+                                                </div>
+                                                <Switch checked={config.styles.enableStroke} onChange={(val) => setCfgStyle('enableStroke', val)} />
+                                            </div>
                                         </div>
 
                                         <div className="flex flex-col space-y-6">
                                             <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 space-y-4">
                                                 <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-neutral-800 pb-3"><i className="fa-solid fa-bell text-teal-500 mr-2"></i>Цвета Уведомлений</h3>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Плюс (+ сек)</label><input type="color" value={config.styles.floatPlusColor || '#22c55e'} onChange={e=>setCfgStyle('floatPlusColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Минус (- сек)</label><input type="color" value={config.styles.floatMinusColor || '#ef4444'} onChange={e=>setCfgStyle('floatMinusColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Текст "ЛАЙКИ"</label><input type="color" value={config.styles.likeAlertColor || '#f43f5e'} onChange={e=>setCfgStyle('likeAlertColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Текст "ПОДПИСКА"</label><input type="color" value={config.styles.followAlertColor || '#34d399'} onChange={e=>setCfgStyle('followAlertColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Плюс (+ сек)</label><input type="color" value={config.styles.floatPlusColor || '#22c55e'} onChange={e=>setCfgStyle('floatPlusColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Минус (- сек)</label><input type="color" value={config.styles.floatMinusColor || '#ef4444'} onChange={e=>setCfgStyle('floatMinusColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Текст "ЛАЙКИ"</label><input type="color" value={config.styles.likeAlertColor || '#f43f5e'} onChange={e=>setCfgStyle('likeAlertColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Текст "ПОДПИСКА"</label><input type="color" value={config.styles.followAlertColor || '#34d399'} onChange={e=>setCfgStyle('followAlertColor', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
                                             </div>
                                             
                                             <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 space-y-4">
-                                                <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-neutral-800 pb-3"><i className="fa-solid fa-layer-group text-purple-500 mr-2"></i>Элементы</h3>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Фон полосы рулетки</label><input type="color" value={config.styles.rouletteBg} onChange={e=>setCfgStyle('rouletteBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Карточка Ускорения</label><input type="color" value={config.styles.buffCardBg} onChange={e=>setCfgStyle('buffCardBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
-                                                <div className="flex items-center justify-between"><label className="text-sm font-medium text-gray-800 dark:text-neutral-300">Карточка Замедления</label><input type="color" value={config.styles.debuffCardBg} onChange={e=>setCfgStyle('debuffCardBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <h3 className="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-neutral-800 pb-3"><i className="fa-solid fa-layer-group text-purple-500 mr-2"></i>Рулетка и Карточки</h3>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Фон полосы рулетки</label><input type="color" value={config.styles.rouletteBg} onChange={e=>setCfgStyle('rouletteBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Карточка Ускорения</label><input type="color" value={config.styles.buffCardBg} onChange={e=>setCfgStyle('buffCardBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
+                                                <div className="flex items-center justify-between"><label className="text-sm font-semibold text-gray-800 dark:text-neutral-300">Карточка Замедления</label><input type="color" value={config.styles.debuffCardBg} onChange={e=>setCfgStyle('debuffCardBg', e.target.value)} className="p-0 size-8 block bg-white border border-gray-200 cursor-pointer rounded-md dark:bg-neutral-900 dark:border-neutral-700" /></div>
                                             </div>
                                         </div>
                                     </div>
@@ -750,14 +732,14 @@
                                     
                                     <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-6 dark:bg-neutral-900 dark:border-neutral-800 space-y-6">
                                         <div className="bg-blue-50 border border-blue-200 text-sm text-blue-800 rounded-lg p-4 dark:bg-blue-800/10 dark:border-blue-900 dark:text-blue-500" role="alert">
-                                            <span className="font-bold">Информация:</span> Эти ссылки уникальны для вашего аккаунта. Добавьте их как источник "Браузер" в OBS Studio. Ширину и высоту настройте по желанию.
+                                            <span className="font-bold">Информация:</span> Эти ссылки уникальны для вашего аккаунта (UID: <span className="font-mono bg-blue-100 dark:bg-blue-900/50 px-1 rounded">{user.id}</span>). Добавьте их как источник "Браузер" в OBS Studio. Ширину и высоту настройте по желанию.
                                         </div>
                                         
                                         <div>
                                             <label className="block text-sm font-bold mb-2 dark:text-white"><i className="fa-solid fa-stopwatch text-teal-500 mr-2"></i>Таймер (и уведомления)</label>
                                             <div className="flex rounded-lg shadow-sm">
-                                                <input type="text" readOnly value={`${window.location.origin}/timer.html?uid=${user.id}`} className="py-3 px-4 block w-full border-gray-200 shadow-sm rounded-s-lg text-sm font-mono focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400" />
-                                                <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/timer.html?uid=${user.id}`)} className="w-[2.875rem] h-[2.875rem] shrink-0 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-e-md border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none" title="Копировать">
+                                                <input type="text" readOnly value={`${window.location.origin}/timer.html?uid=${user.id}`} className="py-3 px-4 block w-full border-gray-200 shadow-sm rounded-s-lg text-sm font-mono focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-950 dark:border-neutral-700 dark:text-neutral-400 outline-none" />
+                                                <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/timer.html?uid=${user.id}`)} className="w-[3.5rem] h-[3rem] shrink-0 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-e-md border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none transition" title="Копировать">
                                                     <i className="fa-solid fa-copy"></i>
                                                 </button>
                                             </div>
@@ -766,8 +748,8 @@
                                         <div>
                                             <label className="block text-sm font-bold mb-2 dark:text-white"><i className="fa-solid fa-dharmachakra text-purple-500 mr-2"></i>Рулетка</label>
                                             <div className="flex rounded-lg shadow-sm">
-                                                <input type="text" readOnly value={`${window.location.origin}/rullete.html?uid=${user.id}`} className="py-3 px-4 block w-full border-gray-200 shadow-sm rounded-s-lg text-sm font-mono focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-400" />
-                                                <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/rullete.html?uid=${user.id}`)} className="w-[2.875rem] h-[2.875rem] shrink-0 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-e-md border border-transparent bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:pointer-events-none" title="Копировать">
+                                                <input type="text" readOnly value={`${window.location.origin}/rullete.html?uid=${user.id}`} className="py-3 px-4 block w-full border-gray-200 shadow-sm rounded-s-lg text-sm font-mono focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-950 dark:border-neutral-700 dark:text-neutral-400 outline-none" />
+                                                <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/rullete.html?uid=${user.id}`)} className="w-[3.5rem] h-[3rem] shrink-0 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-e-md border border-transparent bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:pointer-events-none transition" title="Копировать">
                                                     <i className="fa-solid fa-copy"></i>
                                                 </button>
                                             </div>
@@ -780,9 +762,9 @@
 
                     {}
                     {hasChanges && (
-                        <div id="save-toast" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] bg-white border border-gray-200 shadow-lg rounded-full p-2 flex items-center gap-2 dark:bg-neutral-800 dark:border-neutral-700 animate-fade-in-up" style={{ fontFamily: 'Inter' }}>
-                            <span className="text-sm font-medium text-gray-800 dark:text-white px-3 hidden sm:block">Есть несохраненные изменения</span>
-                            <button onClick={handleSave} className="py-2 px-5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-full border border-transparent bg-teal-500 text-white hover:bg-teal-600 transition-colors">
+                        <div id="save-toast" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] bg-white border border-gray-200 shadow-xl rounded-full p-2 flex items-center gap-2 dark:bg-neutral-800 dark:border-neutral-700 animate-fade-in-up" style={{ fontFamily: 'Inter' }}>
+                            <span className="text-sm font-bold text-gray-800 dark:text-white px-3 hidden sm:block">Есть несохраненные изменения</span>
+                            <button onClick={handleSave} className="py-2 px-5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-full border border-transparent bg-blue-600 text-white hover:bg-blue-700 transition-colors">
                                 <i className="fa-solid fa-check"></i> Сохранить
                             </button>
                             <button onClick={handleCancel} className="w-9 h-9 inline-flex justify-center items-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:bg-neutral-900 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-800 transition-colors" title="Отменить">
@@ -791,9 +773,8 @@
                         </div>
                     )}
 
-                    {}
                     {showRenew && (
-                        <div className="fixed inset-0 z-[80] bg-gray-900 bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-[80] bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 w-full max-w-md relative dark:bg-neutral-800 dark:border-neutral-700 animate-fade-in-up">
                                 <button onClick={() => setShowRenew(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 transition">
                                     <i className="fa-solid fa-xmark text-lg"></i>
